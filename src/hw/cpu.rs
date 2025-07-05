@@ -1,10 +1,40 @@
-use std::collections::HashMap;
+mod opcodes;
+
+use std::ops::BitAnd;
+use bitflags::bitflags;
+use crate::hw::cpu::opcodes::{Instruction, OPCODES};
+
+bitflags! {
+    // Status Register Flags (bit 7 to bit 0)
+    // N V - B D I Z C
+    // 7 6 5 4 3 2 1 0
+    //
+    // N	Negative
+    // V	Overflow
+    // -	ignored
+    // B	Break
+    // D	Decimal (use BCD for arithmetics)
+    // I	Interrupt (IRQ disable)
+    // Z	Zero
+    // C	Carry
+
+    pub struct CpuFlags: u8 {
+        const CARRY         = 0b00000001;
+        const ZERO          = 0b00000010;
+        const INTERRUPT     = 0b00000100;
+        const DECIMAL       = 0b00001000;
+        const BREAK         = 0b00010000;
+        const OVERFLOW      = 0b01000000;
+        const NEGATIVE      = 0b10000000;
+    }
+}
 
 pub struct CPU {
     pub register_a: u8,
     pub register_x: u8,
     pub register_y: u8,
-    pub status: u8,
+    pub status: CpuFlags,
+    pub stack_pointer: u8,
     pub program_counter: u16,
     memory: [u8; 0xFFFF],
 }
@@ -23,82 +53,14 @@ pub enum AddressingMode {
     Implicit,
 }
 
-#[derive(Debug, Clone, Copy)]
-pub enum Instruction {
-    // BRK - return from program
-    BRK,
-    // TAX - transfer accumulator to X
-    TAX,
-    // LDA - load value into accumulator
-    LDA,
-    // INX - increment value in X register
-    INX,
-    // STA - copy value from register a into memory
-    STA,
-}
-
-#[derive(Debug, Clone, Copy)]
-pub struct OpCode {
-    pub instruction: Instruction,
-    pub bytes: u16,
-    pub cycles: u8,
-    pub addressing_mode: AddressingMode,
-}
-
-impl OpCode {
-    pub fn new(instruction: Instruction, bytes: u16, cycles: u8, addressing_mode: AddressingMode) -> Self {
-        OpCode {
-            instruction,
-            bytes,
-            cycles,
-            addressing_mode,
-        }
-    }
-}
-
-lazy_static::lazy_static! {
-    static ref OPCODES: HashMap<u8, OpCode> = {
-        let mut map = HashMap::new();
-
-        // BRK
-        map.insert(0x00, OpCode::new(Instruction::BRK, 1, 7, AddressingMode::Implicit));
-
-        // TAX
-        map.insert(0xAA, OpCode::new(Instruction::TAX, 1, 2, AddressingMode::Implicit));
-
-        // LDA variants
-        map.insert(0xA9, OpCode::new(Instruction::LDA, 2, 2, AddressingMode::Immediate));
-        map.insert(0xA5, OpCode::new(Instruction::LDA, 2, 3, AddressingMode::ZeroPage));
-        map.insert(0xB5, OpCode::new(Instruction::LDA, 2, 4, AddressingMode::ZeroPageX));
-        map.insert(0xAD, OpCode::new(Instruction::LDA, 3, 4, AddressingMode::Absolute));
-        map.insert(0xBD, OpCode::new(Instruction::LDA, 3, 4, AddressingMode::AbsoluteX));
-        map.insert(0xB9, OpCode::new(Instruction::LDA, 3, 4, AddressingMode::AbsoluteY));
-        map.insert(0xA1, OpCode::new(Instruction::LDA, 2, 6, AddressingMode::IndirectX));
-        map.insert(0xB1, OpCode::new(Instruction::LDA, 2, 5, AddressingMode::IndirectY));
-
-        // STA variants
-        map.insert(0x85, OpCode::new(Instruction::STA, 2, 3, AddressingMode::ZeroPage));
-        map.insert(0x95, OpCode::new(Instruction::STA, 2, 4, AddressingMode::ZeroPageX));
-        map.insert(0x8D, OpCode::new(Instruction::STA, 3, 4, AddressingMode::Absolute));
-        map.insert(0x9D, OpCode::new(Instruction::STA, 3, 5, AddressingMode::AbsoluteX));
-        map.insert(0x99, OpCode::new(Instruction::STA, 3, 5, AddressingMode::AbsoluteY));
-        map.insert(0x81, OpCode::new(Instruction::STA, 2, 6, AddressingMode::IndirectX));
-        map.insert(0x91, OpCode::new(Instruction::STA, 2, 6, AddressingMode::IndirectY));
-
-        // INX
-        map.insert(0xE8, OpCode::new(Instruction::INX, 1, 2, AddressingMode::Implicit));
-
-        map
-    };
-}
-
 impl CPU {
     pub fn new() -> CPU {
         CPU {
             register_a: 0,
             register_x: 0,
             register_y: 0,
-            status: 0,
+            status: CpuFlags::empty(),
+            stack_pointer: 0,
             program_counter: 0,
             memory: [0; 0xFFFF],
         }
@@ -185,19 +147,23 @@ impl CPU {
 
     fn update_z_and_n_flags(&mut self, result: u8) {
         if result == 0 {
-            self.status = self.status | 0b0000_0010;
+            self.status.insert(CpuFlags::ZERO);
         } else {
-            self.status = self.status & 0b1111_1101;
+            self.status.remove(CpuFlags::ZERO);
         }
 
         if result & 0b1000_0000 != 0 {
-            self.status = self.status | 0b1000_0000;
+            self.status.insert(CpuFlags::NEGATIVE);
         } else {
-            self.status = self.status & 0b0111_1111;
+            self.status.remove(CpuFlags::NEGATIVE);
         }
     }
 
     /* ------------ OPCODE EXECUTES ------------ */
+
+    fn adc(&mut self, mode: AddressingMode) {
+        todo!("")
+    }
 
     fn lda(&mut self, mode: AddressingMode) {
         let param = self.get_operand_value(mode);
@@ -205,9 +171,46 @@ impl CPU {
         self.update_z_and_n_flags(self.register_a);
     }
 
+    fn ldx(&mut self, mode: AddressingMode) {
+        let param = self.get_operand_value(mode);
+        self.register_x = param;
+        self.update_z_and_n_flags(self.register_x);
+    }
+
+    fn ldy(&mut self, mode: AddressingMode) {
+        let param = self.get_operand_value(mode);
+        self.register_y = param;
+        self.update_z_and_n_flags(self.register_y);
+    }
+
     fn tax(&mut self, _: AddressingMode) {
         self.register_x = self.register_a;
         self.update_z_and_n_flags(self.register_x);
+    }
+
+    fn tay(&mut self, _: AddressingMode) {
+        self.register_y = self.register_a;
+        self.update_z_and_n_flags(self.register_y);
+    }
+
+    fn tsx(&mut self, _: AddressingMode) {
+        self.register_x = self.stack_pointer;
+        self.update_z_and_n_flags(self.register_x);
+    }
+
+    fn txa(&mut self, _: AddressingMode) {
+        self.register_a = self.register_x;
+        self.update_z_and_n_flags(self.register_a);
+    }
+
+    fn txs(&mut self, _: AddressingMode) {
+        self.stack_pointer = self.register_x;
+        self.update_z_and_n_flags(self.stack_pointer);
+    }
+
+    fn tya(&mut self, _: AddressingMode) {
+        self.register_a = self.register_y;
+        self.update_z_and_n_flags(self.register_a);
     }
 
     fn inx(&mut self, _: AddressingMode) {
@@ -218,6 +221,16 @@ impl CPU {
     fn sta(&mut self, mode: AddressingMode) {
         let address = self.get_operand_address(mode);
         self.mem_write(address, self.register_a);
+    }
+
+    fn stx(&mut self, mode: AddressingMode) {
+        let address = self.get_operand_address(mode);
+        self.mem_write(address, self.register_x);
+    }
+
+    fn sty(&mut self, mode: AddressingMode) {
+        let address = self.get_operand_address(mode);
+        self.mem_write(address, self.register_y);
     }
 
     /* ----------------------------------------- */
@@ -237,7 +250,7 @@ impl CPU {
         self.register_a = 0;
         self.register_x = 0;
         self.register_y = 0;
-        self.status = 0;
+        self.status = CpuFlags::empty();
 
         self.program_counter = self.mem_read_u16(0xFFFC);
     }
@@ -249,20 +262,50 @@ impl CPU {
 
             if let Some(opcode) = OPCODES.get(&opcode_byte) {
                 match opcode.instruction {
+                    Instruction::ADC => {
+                        self.adc(opcode.addressing_mode);
+                    }
                     Instruction::BRK => {
                         return;
                     }
                     Instruction::TAX => {
                         self.tax(opcode.addressing_mode);
                     }
+                    Instruction::TAY => {
+                        self.tay(opcode.addressing_mode);
+                    }
+                    Instruction::TSX => {
+                        self.tsx(opcode.addressing_mode);
+                    }
+                    Instruction::TXA => {
+                        self.txa(opcode.addressing_mode);
+                    }
+                    Instruction::TXS => {
+                        self.txs(opcode.addressing_mode);
+                    }
+                    Instruction::TYA => {
+                        self.tya(opcode.addressing_mode);
+                    }
                     Instruction::LDA => {
                         self.lda(opcode.addressing_mode);
+                    }
+                    Instruction::LDX => {
+                        self.ldx(opcode.addressing_mode);
+                    }
+                    Instruction::LDY => {
+                        self.ldy(opcode.addressing_mode);
                     }
                     Instruction::INX => {
                         self.inx(opcode.addressing_mode);
                     }
                     Instruction::STA => {
                         self.sta(opcode.addressing_mode);
+                    }
+                    Instruction::STX => {
+                        self.stx(opcode.addressing_mode);
+                    }
+                    Instruction::STY => {
+                        self.sty(opcode.addressing_mode);
                     }
                 }
 
@@ -282,7 +325,21 @@ mod test {
     fn test_0xa9_lda_zero_flag() {
         let mut cpu = CPU::new();
         cpu.load_and_run(vec![0xa9, 0x00, 0x00]);
-        assert_eq!(cpu.status & 0b0000_0010, 0b10);
+        assert_eq!(cpu.status.bitand(CpuFlags::ZERO).bits(), 0b10);
+    }
+
+    #[test]
+    fn test_0xa2_ldx_zero_flag() {
+        let mut cpu = CPU::new();
+        cpu.load_and_run(vec![0xa2, 0x00, 0x00]);
+        assert_eq!(cpu.status.bitand(CpuFlags::ZERO).bits(), 0b10);
+    }
+
+    #[test]
+    fn test_0xa2_ldy_zero_flag() {
+        let mut cpu = CPU::new();
+        cpu.load_and_run(vec![0xa0, 0x00, 0x00]);
+        assert_eq!(cpu.status.bitand(CpuFlags::ZERO).bits(), 0b10);
     }
 
     #[test]
@@ -294,12 +351,52 @@ mod test {
     }
 
     #[test]
+    fn test_0xa8_tay_move_a_to_y() {
+        let mut cpu = CPU::new();
+        cpu.load_and_run(vec![0xa8, 0x00]);
+
+        assert_eq!(cpu.register_y, 0)
+    }
+
+    #[test]
+    fn test_0xba_tsx_move_sp_to_x() {
+        let mut cpu = CPU::new();
+        cpu.load_and_run(vec![0xba, 0x00]);
+
+        assert_eq!(cpu.register_x, 0)
+    }
+
+    #[test]
+    fn test_0x8a_txa_move_x_to_a() {
+        let mut cpu = CPU::new();
+        cpu.load_and_run(vec![0x8a, 0x00]);
+
+        assert_eq!(cpu.register_a, 0)
+    }
+
+    #[test]
+    fn test_0x9a_txs_move_x_to_sp() {
+        let mut cpu = CPU::new();
+        cpu.load_and_run(vec![0x9a, 0x00]);
+
+        assert_eq!(cpu.stack_pointer, 0)
+    }
+
+    #[test]
+    fn test_0x98_tya_move_y_to_a() {
+        let mut cpu = CPU::new();
+        cpu.load_and_run(vec![0x98, 0x00]);
+
+        assert_eq!(cpu.register_a, 0)
+    }
+
+    #[test]
     fn test_0xa9_lda_immediate_load_data() {
         let mut cpu = CPU::new();
         cpu.load_and_run(vec![0xa9, 0x05, 0x00]);
         assert_eq!(cpu.register_a, 0x05);
-        assert_eq!(cpu.status & 0b0000_0010, 0b00);
-        assert_eq!(cpu.status & 0b1000_0000, 0);
+        assert_eq!(cpu.status.bits() & CpuFlags::ZERO.bits(), 0b00);
+        assert_eq!(cpu.status.bits() & CpuFlags::NEGATIVE.bits(), 0);
     }
 
     #[test]

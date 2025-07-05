@@ -1,0 +1,142 @@
+use std::collections::HashMap;
+use crate::hw::cpu::AddressingMode;
+
+#[derive(Debug, Clone, Copy)]
+pub enum Instruction {
+    /* ----- Transfer instructions ----- */
+    // LDA - load value into accumulator
+    LDA,
+    // LDX - load value into register X
+    LDX,
+    // LDX - load value into register Y
+    LDY,
+    // STA - copy value from register A into memory
+    STA,
+    // STX - copy value from register X into memory
+    STX,
+    // STY - copy value from register Y into memory
+    STY,
+    // TAX - transfer accumulator to X
+    TAX,
+    // TAY - transfer accumulator to Y
+    TAY,
+    // TSX - transfer stack pointer to X
+    TSX,
+    // TXA - transfer X to accumulator
+    TXA,
+    // TXS - transfer X to stack pointer
+    TXS,
+    // TYA - transfer Y to accumulator
+    TYA,
+
+    // ADC - add memory to accumulator with carry
+    ADC,
+    // BRK - return from program
+    BRK,
+    // INX - increment value in X register
+    INX,
+}
+
+#[derive(Debug, Clone, Copy)]
+pub struct OpCode {
+    pub instruction: Instruction,
+    pub bytes: u16,
+    pub cycles: u8,
+    pub addressing_mode: AddressingMode,
+}
+
+impl OpCode {
+    pub fn new(instruction: Instruction, bytes: u16, cycles: u8, addressing_mode: AddressingMode) -> Self {
+        OpCode {
+            instruction,
+            bytes,
+            cycles,
+            addressing_mode,
+        }
+    }
+}
+
+lazy_static::lazy_static! {
+    pub static ref OPCODES: HashMap<u8, OpCode> = {
+        let mut map = HashMap::new();
+
+        // ADC
+        map.insert(0x69, OpCode::new(Instruction::ADC, 2, 2, AddressingMode::Immediate));
+        map.insert(0x65, OpCode::new(Instruction::ADC, 2, 3, AddressingMode::ZeroPage));
+        map.insert(0x75, OpCode::new(Instruction::ADC, 2, 4, AddressingMode::ZeroPageX));
+        map.insert(0x6D, OpCode::new(Instruction::ADC, 3, 4, AddressingMode::Absolute));
+        map.insert(0x7D, OpCode::new(Instruction::ADC, 3, 4, AddressingMode::AbsoluteX));
+        map.insert(0x79, OpCode::new(Instruction::ADC, 3, 4, AddressingMode::AbsoluteY));
+        map.insert(0x61, OpCode::new(Instruction::ADC, 2, 6, AddressingMode::IndirectX));
+        map.insert(0x71, OpCode::new(Instruction::ADC, 2, 5, AddressingMode::IndirectY));
+
+        // BRK
+        map.insert(0x00, OpCode::new(Instruction::BRK, 1, 7, AddressingMode::Implicit));
+
+        // LDA variants
+        map.insert(0xA9, OpCode::new(Instruction::LDA, 2, 2, AddressingMode::Immediate));
+        map.insert(0xA5, OpCode::new(Instruction::LDA, 2, 3, AddressingMode::ZeroPage));
+        map.insert(0xB5, OpCode::new(Instruction::LDA, 2, 4, AddressingMode::ZeroPageX));
+        map.insert(0xAD, OpCode::new(Instruction::LDA, 3, 4, AddressingMode::Absolute));
+        map.insert(0xBD, OpCode::new(Instruction::LDA, 3, 4, AddressingMode::AbsoluteX));
+        map.insert(0xB9, OpCode::new(Instruction::LDA, 3, 4, AddressingMode::AbsoluteY));
+        map.insert(0xA1, OpCode::new(Instruction::LDA, 2, 6, AddressingMode::IndirectX));
+        map.insert(0xB1, OpCode::new(Instruction::LDA, 2, 5, AddressingMode::IndirectY));
+
+        // LDX variants
+        map.insert(0xA2, OpCode::new(Instruction::LDX, 2, 2, AddressingMode::Immediate));
+        map.insert(0xA6, OpCode::new(Instruction::LDX, 2, 3, AddressingMode::ZeroPage));
+        map.insert(0xB6, OpCode::new(Instruction::LDX, 2, 4, AddressingMode::ZeroPageY));
+        map.insert(0xAE, OpCode::new(Instruction::LDX, 3, 4, AddressingMode::Absolute));
+        map.insert(0xBE, OpCode::new(Instruction::LDX, 3, 4, AddressingMode::AbsoluteY));
+
+        // LDY variants
+        map.insert(0xA0, OpCode::new(Instruction::LDY, 2, 2, AddressingMode::Immediate));
+        map.insert(0xA4, OpCode::new(Instruction::LDY, 2, 3, AddressingMode::ZeroPage));
+        map.insert(0xB4, OpCode::new(Instruction::LDY, 2, 4, AddressingMode::ZeroPageX));
+        map.insert(0xAC, OpCode::new(Instruction::LDY, 3, 4, AddressingMode::Absolute));
+        map.insert(0xBC, OpCode::new(Instruction::LDY, 3, 4, AddressingMode::AbsoluteX));
+
+        // STA variants
+        map.insert(0x85, OpCode::new(Instruction::STA, 2, 3, AddressingMode::ZeroPage));
+        map.insert(0x95, OpCode::new(Instruction::STA, 2, 4, AddressingMode::ZeroPageX));
+        map.insert(0x8D, OpCode::new(Instruction::STA, 3, 4, AddressingMode::Absolute));
+        map.insert(0x9D, OpCode::new(Instruction::STA, 3, 5, AddressingMode::AbsoluteX));
+        map.insert(0x99, OpCode::new(Instruction::STA, 3, 5, AddressingMode::AbsoluteY));
+        map.insert(0x81, OpCode::new(Instruction::STA, 2, 6, AddressingMode::IndirectX));
+        map.insert(0x91, OpCode::new(Instruction::STA, 2, 6, AddressingMode::IndirectY));
+
+        // STX variants
+        map.insert(0x86, OpCode::new(Instruction::STX, 2, 3, AddressingMode::ZeroPage));
+        map.insert(0x96, OpCode::new(Instruction::STX, 2, 4, AddressingMode::ZeroPageY));
+        map.insert(0x8E, OpCode::new(Instruction::STX, 3, 4, AddressingMode::Absolute));
+
+        // STY variants
+        map.insert(0x84, OpCode::new(Instruction::STY, 2, 3, AddressingMode::ZeroPage));
+        map.insert(0x94, OpCode::new(Instruction::STY, 2, 4, AddressingMode::ZeroPageX));
+        map.insert(0x8C, OpCode::new(Instruction::STY, 3, 4, AddressingMode::Absolute));
+
+        // TAX
+        map.insert(0xAA, OpCode::new(Instruction::TAX, 1, 2, AddressingMode::Implicit));
+
+        // TAY
+        map.insert(0xA8, OpCode::new(Instruction::TAY, 1, 2, AddressingMode::Implicit));
+
+        // TSX
+        map.insert(0xBA, OpCode::new(Instruction::TSX, 1, 2, AddressingMode::Implicit));
+
+        // TXA
+        map.insert(0x8A, OpCode::new(Instruction::TXA, 1, 2, AddressingMode::Implicit));
+
+        // TXS
+        map.insert(0x9A, OpCode::new(Instruction::TXS, 1, 2, AddressingMode::Implicit));
+
+        // TYA
+        map.insert(0x98, OpCode::new(Instruction::TYA, 1, 2, AddressingMode::Implicit));
+
+        // INX
+        map.insert(0xE8, OpCode::new(Instruction::INX, 1, 2, AddressingMode::Implicit));
+
+        map
+    };
+}
