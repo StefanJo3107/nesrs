@@ -1,8 +1,95 @@
+use std::collections::HashMap;
+
 pub struct CPU {
     pub register_a: u8,
     pub register_x: u8,
+    pub register_y: u8,
     pub status: u8,
-    pub program_counter: u16
+    pub program_counter: u16,
+    memory: [u8; 0xFFFF],
+}
+
+#[derive(Debug, Clone, Copy)]
+pub enum AddressingMode {
+    Immediate,
+    ZeroPage,
+    ZeroPageX,
+    ZeroPageY,
+    Absolute,
+    AbsoluteX,
+    AbsoluteY,
+    IndirectX,
+    IndirectY,
+    Implicit,
+}
+
+#[derive(Debug, Clone, Copy)]
+pub enum Instruction {
+    // BRK - return from program
+    BRK,
+    // TAX - transfer accumulator to X
+    TAX,
+    // LDA - load value into accumulator
+    LDA,
+    // INX - increment value in X register
+    INX,
+    // STA - copy value from register a into memory
+    STA,
+}
+
+#[derive(Debug, Clone, Copy)]
+pub struct OpCode {
+    pub instruction: Instruction,
+    pub bytes: u16,
+    pub cycles: u8,
+    pub addressing_mode: AddressingMode,
+}
+
+impl OpCode {
+    pub fn new(instruction: Instruction, bytes: u16, cycles: u8, addressing_mode: AddressingMode) -> Self {
+        OpCode {
+            instruction,
+            bytes,
+            cycles,
+            addressing_mode,
+        }
+    }
+}
+
+lazy_static::lazy_static! {
+    static ref OPCODES: HashMap<u8, OpCode> = {
+        let mut map = HashMap::new();
+
+        // BRK
+        map.insert(0x00, OpCode::new(Instruction::BRK, 1, 7, AddressingMode::Implicit));
+
+        // TAX
+        map.insert(0xAA, OpCode::new(Instruction::TAX, 1, 2, AddressingMode::Implicit));
+
+        // LDA variants
+        map.insert(0xA9, OpCode::new(Instruction::LDA, 2, 2, AddressingMode::Immediate));
+        map.insert(0xA5, OpCode::new(Instruction::LDA, 2, 3, AddressingMode::ZeroPage));
+        map.insert(0xB5, OpCode::new(Instruction::LDA, 2, 4, AddressingMode::ZeroPageX));
+        map.insert(0xAD, OpCode::new(Instruction::LDA, 3, 4, AddressingMode::Absolute));
+        map.insert(0xBD, OpCode::new(Instruction::LDA, 3, 4, AddressingMode::AbsoluteX));
+        map.insert(0xB9, OpCode::new(Instruction::LDA, 3, 4, AddressingMode::AbsoluteY));
+        map.insert(0xA1, OpCode::new(Instruction::LDA, 2, 6, AddressingMode::IndirectX));
+        map.insert(0xB1, OpCode::new(Instruction::LDA, 2, 5, AddressingMode::IndirectY));
+
+        // STA variants
+        map.insert(0x85, OpCode::new(Instruction::STA, 2, 3, AddressingMode::ZeroPage));
+        map.insert(0x95, OpCode::new(Instruction::STA, 2, 4, AddressingMode::ZeroPageX));
+        map.insert(0x8D, OpCode::new(Instruction::STA, 3, 4, AddressingMode::Absolute));
+        map.insert(0x9D, OpCode::new(Instruction::STA, 3, 5, AddressingMode::AbsoluteX));
+        map.insert(0x99, OpCode::new(Instruction::STA, 3, 5, AddressingMode::AbsoluteY));
+        map.insert(0x81, OpCode::new(Instruction::STA, 2, 6, AddressingMode::IndirectX));
+        map.insert(0x91, OpCode::new(Instruction::STA, 2, 6, AddressingMode::IndirectY));
+
+        // INX
+        map.insert(0xE8, OpCode::new(Instruction::INX, 1, 2, AddressingMode::Implicit));
+
+        map
+    };
 }
 
 impl CPU {
@@ -10,15 +97,90 @@ impl CPU {
         CPU {
             register_a: 0,
             register_x: 0,
+            register_y: 0,
             status: 0,
-            program_counter: 0
+            program_counter: 0,
+            memory: [0; 0xFFFF],
         }
     }
 
-    fn get_next_instruction(&mut self, program: &Vec<u8>) -> u8 {
-        let next = program[self.program_counter as usize];
-        self.program_counter += 1;
-        next
+    fn mem_read(&self, addr: u16) -> u8 {
+        self.memory[addr as usize]
+    }
+
+    fn mem_write(&mut self, addr: u16, data: u8) {
+        self.memory[addr as usize] = data;
+    }
+
+    fn mem_read_u16(&self, addr: u16) -> u16 {
+        let lo = self.mem_read(addr) as u16;
+        let hi = self.mem_read(addr + 1) as u16;
+        (hi << 8) | lo
+    }
+
+    fn mem_write_u16(&mut self, addr: u16, data: u16) {
+        let hi = (data >> 8) as u8;
+        let lo = (data & 0xFF) as u8;
+        self.mem_write(addr, lo);
+        self.mem_write(addr + 1, hi);
+    }
+
+    fn get_operand_value(&mut self, mode: AddressingMode) -> u8 {
+        let address = self.get_operand_address(mode);
+        self.mem_read(address)
+    }
+
+    fn get_operand_address(&self, mode: AddressingMode) -> u16 {
+        match mode {
+            AddressingMode::Immediate => self.program_counter,
+
+            AddressingMode::ZeroPage => self.mem_read(self.program_counter) as u16,
+
+            AddressingMode::Absolute => self.mem_read_u16(self.program_counter),
+
+            AddressingMode::ZeroPageX => {
+                let pos = self.mem_read(self.program_counter);
+                pos.wrapping_add(self.register_x) as u16
+            }
+
+            AddressingMode::ZeroPageY => {
+                let pos = self.mem_read(self.program_counter);
+                pos.wrapping_add(self.register_y) as u16
+            }
+
+            AddressingMode::AbsoluteX => {
+                let base = self.mem_read_u16(self.program_counter);
+                base.wrapping_add(self.register_x as u16)
+            }
+
+            AddressingMode::AbsoluteY => {
+                let base = self.mem_read_u16(self.program_counter);
+                base.wrapping_add(self.register_y as u16)
+            }
+
+            AddressingMode::IndirectX => {
+                let base = self.mem_read(self.program_counter);
+
+                let ptr: u8 = base.wrapping_add(self.register_x);
+                let lo = self.mem_read(ptr as u16);
+                let hi = self.mem_read(ptr.wrapping_add(1) as u16);
+                (hi as u16) << 8 | (lo as u16)
+            }
+
+            AddressingMode::IndirectY => {
+                let base = self.mem_read(self.program_counter);
+
+                let lo = self.mem_read(base as u16);
+                let hi = self.mem_read((base as u8).wrapping_add(1) as u16);
+                let deref_base = (hi as u16) << 8 | (lo as u16);
+                let deref = deref_base.wrapping_add(self.register_y as u16);
+                deref
+            }
+
+            AddressingMode::Implicit => {
+                panic!("mode {:?} is not supported", mode);
+            }
+        }
     }
 
     fn update_z_and_n_flags(&mut self, result: u8) {
@@ -35,50 +197,78 @@ impl CPU {
         }
     }
 
-    fn lda(&mut self, value: u8) {
-        self.register_a = value;
+    /* ------------ OPCODE EXECUTES ------------ */
+
+    fn lda(&mut self, mode: AddressingMode) {
+        let param = self.get_operand_value(mode);
+        self.register_a = param;
         self.update_z_and_n_flags(self.register_a);
     }
 
-    fn tax(&mut self) {
+    fn tax(&mut self, _: AddressingMode) {
         self.register_x = self.register_a;
         self.update_z_and_n_flags(self.register_x);
     }
 
-    fn inx(&mut self) {
-        if self.register_x == 0xff {
-            self.register_x = 0;
-        } else {
-            self.register_x += 1;
-        }
+    fn inx(&mut self, _: AddressingMode) {
+        self.register_x = self.register_x.wrapping_add(1);
         self.update_z_and_n_flags(self.register_x);
     }
 
-    pub fn interpret(&mut self, program: Vec<u8>) {
-        self.program_counter = 0;
+    fn sta(&mut self, mode: AddressingMode) {
+        let address = self.get_operand_address(mode);
+        self.mem_write(address, self.register_a);
+    }
 
+    /* ----------------------------------------- */
+
+    pub fn load_and_run(&mut self, program: Vec<u8>) {
+        self.load(program);
+        self.reset();
+        self.run();
+    }
+
+    pub fn load(&mut self, program: Vec<u8>) {
+        self.memory[0x8000..(0x8000 + program.len())].copy_from_slice(&program);
+        self.mem_write_u16(0xFFFC, 0x8000);
+    }
+
+    fn reset(&mut self) {
+        self.register_a = 0;
+        self.register_x = 0;
+        self.register_y = 0;
+        self.status = 0;
+
+        self.program_counter = self.mem_read_u16(0xFFFC);
+    }
+
+    pub fn run(&mut self) {
         loop {
-            let opcode = self.get_next_instruction(&program);
+            let opcode_byte = self.mem_read(self.program_counter);
+            self.program_counter += 1;
 
-            match opcode {
-                // BRK - return from program
-                0x00 => {
-                    return;
+            if let Some(opcode) = OPCODES.get(&opcode_byte) {
+                match opcode.instruction {
+                    Instruction::BRK => {
+                        return;
+                    }
+                    Instruction::TAX => {
+                        self.tax(opcode.addressing_mode);
+                    }
+                    Instruction::LDA => {
+                        self.lda(opcode.addressing_mode);
+                    }
+                    Instruction::INX => {
+                        self.inx(opcode.addressing_mode);
+                    }
+                    Instruction::STA => {
+                        self.sta(opcode.addressing_mode);
+                    }
                 }
-                // TAX - transfer accumulator to X
-                0xAA => {
-                    self.tax();
-                }
-                // LDA <value: u8> - load <value> into accumulator
-                0xA9 => {
-                    let param = self.get_next_instruction(&program);
-                    self.lda(param);
-                }
-                // INX - increment value in X register
-                0xE8 => {
-                    self.inx();
-                }
-                _ => todo!("")
+
+                self.program_counter += opcode.bytes - 1;
+            } else {
+                panic!("Illegal instruction: 0x{:02X}", opcode_byte);
             }
         }
     }
@@ -91,23 +281,22 @@ mod test {
     #[test]
     fn test_0xa9_lda_zero_flag() {
         let mut cpu = CPU::new();
-        cpu.interpret(vec![0xa9, 0x00, 0x00]);
+        cpu.load_and_run(vec![0xa9, 0x00, 0x00]);
         assert_eq!(cpu.status & 0b0000_0010, 0b10);
     }
 
     #[test]
     fn test_0xaa_tax_move_a_to_x() {
         let mut cpu = CPU::new();
-        cpu.register_a = 10;
-        cpu.interpret(vec![0xaa, 0x00]);
+        cpu.load_and_run(vec![0xaa, 0x00]);
 
-        assert_eq!(cpu.register_x, 10)
+        assert_eq!(cpu.register_x, 0)
     }
 
     #[test]
     fn test_0xa9_lda_immediate_load_data() {
         let mut cpu = CPU::new();
-        cpu.interpret(vec![0xa9, 0x05, 0x00]);
+        cpu.load_and_run(vec![0xa9, 0x05, 0x00]);
         assert_eq!(cpu.register_a, 0x05);
         assert_eq!(cpu.status & 0b0000_0010, 0b00);
         assert_eq!(cpu.status & 0b1000_0000, 0);
@@ -116,17 +305,26 @@ mod test {
     #[test]
     fn test_inx_overflow() {
         let mut cpu = CPU::new();
-        cpu.register_x = 0xff;
-        cpu.interpret(vec![0xe8, 0xe8, 0x00]);
+        cpu.load_and_run(vec![0xe8, 0xe8, 0x00]);
 
-        assert_eq!(cpu.register_x, 1)
+        assert_eq!(cpu.register_x, 2)
     }
 
     #[test]
     fn test_5_ops_working_together() {
         let mut cpu = CPU::new();
-        cpu.interpret(vec![0xa9, 0xc0, 0xaa, 0xe8, 0x00]);
+        cpu.load_and_run(vec![0xa9, 0xc0, 0xaa, 0xe8, 0x00]);
 
         assert_eq!(cpu.register_x, 0xc1)
+    }
+
+    #[test]
+    fn test_lda_from_memory() {
+        let mut cpu = CPU::new();
+        cpu.mem_write(0x10, 0x55);
+
+        cpu.load_and_run(vec![0xa5, 0x10, 0x00]);
+
+        assert_eq!(cpu.register_a, 0x55);
     }
 }
