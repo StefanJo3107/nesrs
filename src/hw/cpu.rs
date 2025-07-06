@@ -260,9 +260,40 @@ impl CPU {
         self.status.remove(CpuFlags::BREAK);
     }
 
+    fn dec(&mut self, mode: AddressingMode) {
+        let addr = self.get_operand_address(mode);
+        let mut value = self.mem_read(addr);
+        value = value.wrapping_sub(1);
+        self.mem_write(addr, value);
+        self.update_z_and_n_flags(value);
+    }
+
+    fn dex(&mut self, _: AddressingMode) {
+        self.register_x = self.register_x.wrapping_sub(1);
+        self.update_z_and_n_flags(self.register_x);
+    }
+
+    fn dey(&mut self, _: AddressingMode) {
+        self.register_y = self.register_y.wrapping_sub(1);
+        self.update_z_and_n_flags(self.register_y);
+    }
+
+    fn inc(&mut self, mode: AddressingMode) {
+        let addr = self.get_operand_address(mode);
+        let mut value = self.mem_read(addr);
+        value = value.wrapping_add(1);
+        self.mem_write(addr, value);
+        self.update_z_and_n_flags(value);
+    }
+
     fn inx(&mut self, _: AddressingMode) {
         self.register_x = self.register_x.wrapping_add(1);
         self.update_z_and_n_flags(self.register_x);
+    }
+
+    fn iny(&mut self, _: AddressingMode) {
+        self.register_y = self.register_y.wrapping_add(1);
+        self.update_z_and_n_flags(self.register_y);
     }
 
     fn adc(&mut self, mode: AddressingMode) {
@@ -332,9 +363,6 @@ impl CPU {
                     Instruction::LDY => {
                         self.ldy(opcode.addressing_mode);
                     }
-                    Instruction::INX => {
-                        self.inx(opcode.addressing_mode);
-                    }
                     Instruction::STA => {
                         self.sta(opcode.addressing_mode);
                     }
@@ -355,6 +383,24 @@ impl CPU {
                     }
                     Instruction::PLP => {
                         self.plp(opcode.addressing_mode);
+                    }
+                    Instruction::DEC => {
+                        self.dec(opcode.addressing_mode);
+                    }
+                    Instruction::DEX => {
+                        self.dex(opcode.addressing_mode);
+                    }
+                    Instruction::DEY => {
+                        self.dey(opcode.addressing_mode);
+                    }
+                    Instruction::INC => {
+                        self.inc(opcode.addressing_mode);
+                    }
+                    Instruction::INX => {
+                        self.inx(opcode.addressing_mode);
+                    }
+                    Instruction::INY => {
+                        self.iny(opcode.addressing_mode);
                     }
                 }
 

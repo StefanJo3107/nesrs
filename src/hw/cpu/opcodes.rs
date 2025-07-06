@@ -30,21 +30,33 @@ pub enum Instruction {
     TYA,
 
     /* ----- Stack instructions ----- */
-    // push accumulator on stack
+    // PHA - push accumulator on stack
     PHA,
-    // push processor status register (with break flag set)
+    // PHP - push processor status register (with break flag set)
     PHP,
-    // pull accumulator
+    // PLA - pull accumulator
     PLA,
-    // pull processor status register
+    // PLP - pull processor status register
     PLP,
+
+    /* ----- Decrements and increments ----- */
+    // DEC - decrement (memory)
+    DEC,
+    // DEX - decrement X
+    DEX,
+    // DEY - decrement Y
+    DEY,
+    // INC - increment (memory)
+    INC,
+    // INX - increment value in X register
+    INX,
+    // INY - increment value in Y register
+    INY,
 
     // ADC - add memory to accumulator with carry
     ADC,
     // BRK - return from program
     BRK,
-    // INX - increment value in X register
-    INX,
 }
 
 #[derive(Debug, Clone, Copy)]
@@ -144,9 +156,6 @@ lazy_static::lazy_static! {
         // TYA
         map.insert(0x98, OpCode::new(Instruction::TYA, 1, 2, AddressingMode::Implicit));
 
-        // INX
-        map.insert(0xE8, OpCode::new(Instruction::INX, 1, 2, AddressingMode::Implicit));
-
         // PHA
         map.insert(0x48, OpCode::new(Instruction::PHA, 1, 3, AddressingMode::Implicit));
 
@@ -158,6 +167,30 @@ lazy_static::lazy_static! {
 
         // PLP
         map.insert(0x28, OpCode::new(Instruction::PLP, 1, 4, AddressingMode::Implicit));
+
+        // DEC
+        map.insert(0xC6, OpCode::new(Instruction::DEC, 2, 5, AddressingMode::ZeroPage));
+        map.insert(0xD6, OpCode::new(Instruction::DEC, 2, 6, AddressingMode::ZeroPageX));
+        map.insert(0xCE, OpCode::new(Instruction::DEC, 3, 6, AddressingMode::Absolute));
+        map.insert(0xDE, OpCode::new(Instruction::DEC, 3, 7, AddressingMode::AbsoluteX));
+
+        // DEX
+        map.insert(0xCA, OpCode::new(Instruction::DEX, 1, 2, AddressingMode::Implicit));
+
+        // DEY
+        map.insert(0x88, OpCode::new(Instruction::DEY, 1, 2, AddressingMode::Implicit));
+
+        // INC
+        map.insert(0xE6, OpCode::new(Instruction::INC, 2, 5, AddressingMode::ZeroPage));
+        map.insert(0xF6, OpCode::new(Instruction::INC, 2, 6, AddressingMode::ZeroPageX));
+        map.insert(0xEE, OpCode::new(Instruction::INC, 3, 6, AddressingMode::Absolute));
+        map.insert(0xFE, OpCode::new(Instruction::INC, 3, 7, AddressingMode::AbsoluteX));
+
+        // INX
+        map.insert(0xE8, OpCode::new(Instruction::INX, 1, 2, AddressingMode::Implicit));
+
+        // INY
+        map.insert(0xC8, OpCode::new(Instruction::INY, 1, 2, AddressingMode::Implicit));
 
         map
     };

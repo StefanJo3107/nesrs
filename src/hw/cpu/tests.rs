@@ -93,6 +93,86 @@ mod test {
     }
 
     #[test]
+    fn test_dex() {
+        let mut cpu = CPU::new();
+        cpu.load_and_run(vec![0xa2, 0x02,  // LDX #$02
+                              0xca,       // DEX
+                              0xca,       // DEX
+                              0x00]);
+        assert_eq!(cpu.register_x, 0);
+    }
+
+    #[test]
+    fn test_dex_underflow() {
+        let mut cpu = CPU::new();
+        cpu.load_and_run(vec![0xa2, 0x00,  // LDX #$00
+                              0xca,       // DEX (should wrap to 0xff)
+                              0x00]);
+        assert_eq!(cpu.register_x, 0xff);
+    }
+
+    #[test]
+    fn test_dey() {
+        let mut cpu = CPU::new();
+        cpu.load_and_run(vec![0xa0, 0x02,  // LDY #$02
+                              0x88,       // DEY
+                              0x88,       // DEY
+                              0x00]);
+        assert_eq!(cpu.register_y, 0);
+    }
+
+    #[test]
+    fn test_dey_underflow() {
+        let mut cpu = CPU::new();
+        cpu.load_and_run(vec![0xa0, 0x00,  // LDY #$00
+                              0x88,       // DEY (should wrap to 0xff)
+                              0x00]);
+        assert_eq!(cpu.register_y, 0xff);
+    }
+
+    #[test]
+    fn test_inc() {
+        let mut cpu = CPU::new();
+        cpu.load_and_run(vec![0xa9, 0xfe,  // LDA #$fe
+                              0x85, 0x10,  // STA $10
+                              0xe6, 0x10,  // INC $10
+                              0xe6, 0x10,  // INC $10
+                              0x00]);
+        assert_eq!(cpu.mem_read(0x10), 0x00);
+    }
+
+    #[test]
+    fn test_iny() {
+        let mut cpu = CPU::new();
+        cpu.load_and_run(vec![0xa0, 0xfe,  // LDY #$fe
+                              0xc8,       // INY
+                              0xc8,       // INY
+                              0x00]);
+        assert_eq!(cpu.register_y, 0x00);
+    }
+
+    #[test]
+    fn test_dec() {
+        let mut cpu = CPU::new();
+        cpu.load_and_run(vec![0xa9, 0x02,  // LDA #$02
+                              0x85, 0x10,  // STA $10
+                              0xc6, 0x10,  // DEC $10
+                              0xc6, 0x10,  // DEC $10
+                              0x00]);
+        assert_eq!(cpu.mem_read(0x10), 0x00);
+    }
+
+    #[test]
+    fn test_dec_underflow() {
+        let mut cpu = CPU::new();
+        cpu.load_and_run(vec![0xa9, 0x00,  // LDA #$00
+                              0x85, 0x10,  // STA $10
+                              0xc6, 0x10,  // DEC $10 (should wrap to 0xff)
+                              0x00]);
+        assert_eq!(cpu.mem_read(0x10), 0xff);
+    }
+
+    #[test]
     fn test_5_ops_working_together() {
         let mut cpu = CPU::new();
         cpu.load_and_run(vec![0xa9, 0xc0, 0xaa, 0xe8, 0x00]);
