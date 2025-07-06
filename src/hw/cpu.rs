@@ -1,7 +1,6 @@
 mod opcodes;
 mod tests;
 
-use std::ops::BitAnd;
 use bitflags::bitflags;
 use crate::hw::cpu::opcodes::{Instruction, OPCODES};
 
@@ -296,6 +295,24 @@ impl CPU {
         self.update_z_and_n_flags(self.register_y);
     }
 
+    fn and(&mut self, mode: AddressingMode) {
+        let value = self.get_operand_value(mode);
+        self.register_a &= value;
+        self.update_z_and_n_flags(self.register_a);
+    }
+
+    fn eor(&mut self, mode: AddressingMode) {
+        let value = self.get_operand_value(mode);
+        self.register_a ^= value;
+        self.update_z_and_n_flags(self.register_a);
+    }
+
+    fn ora(&mut self, mode: AddressingMode) {
+        let value = self.get_operand_value(mode);
+        self.register_a |= value;
+        self.update_z_and_n_flags(self.register_a);
+    }
+
     fn adc(&mut self, mode: AddressingMode) {
         todo!("")
     }
@@ -401,6 +418,15 @@ impl CPU {
                     }
                     Instruction::INY => {
                         self.iny(opcode.addressing_mode);
+                    }
+                    Instruction::AND => {
+                        self.and(opcode.addressing_mode);
+                    }
+                    Instruction::EOR => {
+                        self.eor(opcode.addressing_mode);
+                    }
+                    Instruction::ORA => {
+                        self.ora(opcode.addressing_mode);
                     }
                 }
 

@@ -53,6 +53,14 @@ pub enum Instruction {
     // INY - increment value in Y register
     INY,
 
+    /* ----- Logical operations ----- */
+    // AND - and with accumulator
+    AND,
+    // EOR - exclusive or with accumulator
+    EOR,
+    // inclusive or with accumulator
+    ORA,
+
     // ADC - add memory to accumulator with carry
     ADC,
     // BRK - return from program
@@ -191,6 +199,36 @@ lazy_static::lazy_static! {
 
         // INY
         map.insert(0xC8, OpCode::new(Instruction::INY, 1, 2, AddressingMode::Implicit));
+
+        // AND
+        map.insert(0x29, OpCode::new(Instruction::AND, 2, 2, AddressingMode::Immediate));
+        map.insert(0x25, OpCode::new(Instruction::AND, 2, 3, AddressingMode::ZeroPage));
+        map.insert(0x35, OpCode::new(Instruction::AND, 2, 4, AddressingMode::ZeroPageX));
+        map.insert(0x2D, OpCode::new(Instruction::AND, 3, 4, AddressingMode::Absolute));
+        map.insert(0x3D, OpCode::new(Instruction::AND, 3, 4, AddressingMode::AbsoluteX));
+        map.insert(0x39, OpCode::new(Instruction::AND, 3, 4, AddressingMode::AbsoluteY));
+        map.insert(0x21, OpCode::new(Instruction::AND, 2, 6, AddressingMode::IndirectX));
+        map.insert(0x31, OpCode::new(Instruction::AND, 2, 5, AddressingMode::IndirectY));
+
+        // EOR
+        map.insert(0x49, OpCode::new(Instruction::EOR, 2, 2, AddressingMode::Immediate));
+        map.insert(0x45, OpCode::new(Instruction::EOR, 2, 3, AddressingMode::ZeroPage));
+        map.insert(0x55, OpCode::new(Instruction::EOR, 2, 4, AddressingMode::ZeroPageX));
+        map.insert(0x4D, OpCode::new(Instruction::EOR, 3, 4, AddressingMode::Absolute));
+        map.insert(0x5D, OpCode::new(Instruction::EOR, 3, 4, AddressingMode::AbsoluteX));
+        map.insert(0x59, OpCode::new(Instruction::EOR, 3, 4, AddressingMode::AbsoluteY));
+        map.insert(0x41, OpCode::new(Instruction::EOR, 2, 6, AddressingMode::IndirectX));
+        map.insert(0x51, OpCode::new(Instruction::EOR, 2, 5, AddressingMode::IndirectY));
+
+        // ORA
+        map.insert(0x09, OpCode::new(Instruction::ORA, 2, 2, AddressingMode::Immediate));
+        map.insert(0x05, OpCode::new(Instruction::ORA, 2, 3, AddressingMode::ZeroPage));
+        map.insert(0x15, OpCode::new(Instruction::ORA, 2, 4, AddressingMode::ZeroPageX));
+        map.insert(0x0D, OpCode::new(Instruction::ORA, 3, 4, AddressingMode::Absolute));
+        map.insert(0x1D, OpCode::new(Instruction::ORA, 3, 4, AddressingMode::AbsoluteX));
+        map.insert(0x19, OpCode::new(Instruction::ORA, 3, 4, AddressingMode::AbsoluteY));
+        map.insert(0x01, OpCode::new(Instruction::ORA, 2, 6, AddressingMode::IndirectX));
+        map.insert(0x11, OpCode::new(Instruction::ORA, 2, 5, AddressingMode::IndirectY));
 
         map
     };

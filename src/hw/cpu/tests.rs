@@ -316,4 +316,132 @@ mod test {
         assert_eq!(cpu.register_a, 0x00);
         assert_eq!(cpu.stack_pointer, 0x00);
     }
+
+    #[test]
+    fn test_and() {
+        let mut cpu = CPU::new();
+        cpu.load_and_run(vec![
+            0xa9, 0x0f,     // LDA #$0f
+            0x29, 0x55,     // AND #$55
+            0x00
+        ]);
+        assert_eq!(cpu.register_a, 0x05);
+        assert!(!cpu.status.contains(CpuFlags::ZERO));
+        assert!(!cpu.status.contains(CpuFlags::NEGATIVE));
+    }
+
+    #[test]
+    fn test_and_zero() {
+        let mut cpu = CPU::new();
+        cpu.load_and_run(vec![
+            0xa9, 0xff,     // LDA #$ff
+            0x29, 0x00,     // AND #$00
+            0x00
+        ]);
+        assert_eq!(cpu.register_a, 0x00);
+        assert!(cpu.status.contains(CpuFlags::ZERO));
+    }
+
+    #[test]
+    fn test_and_negative() {
+        let mut cpu = CPU::new();
+        cpu.load_and_run(vec![
+            0xa9, 0x80,     // LDA #$80
+            0x29, 0xff,     // AND #$ff
+            0x00
+        ]);
+        assert_eq!(cpu.register_a, 0x80);
+        assert!(cpu.status.contains(CpuFlags::NEGATIVE));
+    }
+
+    #[test]
+    fn test_eor() {
+        let mut cpu = CPU::new();
+        cpu.load_and_run(vec![
+            0xa9, 0xaa,     // LDA #$aa
+            0x49, 0x55,     // EOR #$55
+            0x00
+        ]);
+        assert_eq!(cpu.register_a, 0xff);
+        assert!(cpu.status.contains(CpuFlags::NEGATIVE));
+    }
+
+    #[test]
+    fn test_eor_zero() {
+        let mut cpu = CPU::new();
+        cpu.load_and_run(vec![
+            0xa9, 0x55,     // LDA #$55
+            0x49, 0x55,     // EOR #$55
+            0x00
+        ]);
+        assert_eq!(cpu.register_a, 0x00);
+        assert!(cpu.status.contains(CpuFlags::ZERO));
+    }
+
+    #[test]
+    fn test_ora() {
+        let mut cpu = CPU::new();
+        cpu.load_and_run(vec![
+            0xa9, 0x0f,     // LDA #$0f
+            0x09, 0xf0,     // ORA #$f0
+            0x00
+        ]);
+        assert_eq!(cpu.register_a, 0xff);
+        assert!(cpu.status.contains(CpuFlags::NEGATIVE));
+    }
+
+    #[test]
+    fn test_ora_zero() {
+        let mut cpu = CPU::new();
+        cpu.load_and_run(vec![
+            0xa9, 0x00,     // LDA #$00
+            0x09, 0x00,     // ORA #$00
+            0x00
+        ]);
+        assert_eq!(cpu.register_a, 0x00);
+        assert!(cpu.status.contains(CpuFlags::ZERO));
+    }
+
+    #[test]
+    fn test_ora_memory() {
+        let mut cpu = CPU::new();
+        cpu.load_and_run(vec![
+            0xa9, 0x33,     // LDA #$33
+            0x85, 0x10,     // STA $10
+            0xa9, 0x0c,     // LDA #$0c
+            0x05, 0x10,     // ORA $10
+            0x00
+        ]);
+        assert_eq!(cpu.register_a, 0x3f);
+        assert!(!cpu.status.contains(CpuFlags::ZERO));
+    }
+
+    #[test]
+    fn test_and_memory() {
+        let mut cpu = CPU::new();
+        cpu.load_and_run(vec![
+            0xa9, 0xff,     // LDA #$ff
+            0x85, 0x20,     // STA $20
+            0xa9, 0xaa,     // LDA #$aa
+            0x25, 0x20,     // AND $20
+            0x00
+        ]);
+        assert_eq!(cpu.register_a, 0xaa);
+        assert!(cpu.status.contains(CpuFlags::NEGATIVE));
+    }
+
+    #[test]
+    fn test_eor_memory() {
+        let mut cpu = CPU::new();
+        cpu.load_and_run(vec![
+            0xa9, 0x55,     // LDA #$55
+            0x85, 0x30,     // STA $30
+            0xa9, 0xaa,     // LDA #$aa
+            0x45, 0x30,     // EOR $30
+            0x00
+        ]);
+        assert_eq!(cpu.register_a, 0xff);
+        assert!(cpu.status.contains(CpuFlags::NEGATIVE));
+        assert!(!cpu.status.contains(CpuFlags::ZERO));
+    }
 }
