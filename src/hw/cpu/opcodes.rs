@@ -29,6 +29,16 @@ pub enum Instruction {
     // TYA - transfer Y to accumulator
     TYA,
 
+    /* ----- Stack instructions ----- */
+    // push accumulator on stack
+    PHA,
+    // push processor status register (with break flag set)
+    PHP,
+    // pull accumulator
+    PLA,
+    // pull processor status register
+    PLP,
+
     // ADC - add memory to accumulator with carry
     ADC,
     // BRK - return from program
@@ -136,6 +146,18 @@ lazy_static::lazy_static! {
 
         // INX
         map.insert(0xE8, OpCode::new(Instruction::INX, 1, 2, AddressingMode::Implicit));
+
+        // PHA
+        map.insert(0x48, OpCode::new(Instruction::PHA, 1, 3, AddressingMode::Implicit));
+
+        // PHP
+        map.insert(0x08, OpCode::new(Instruction::PHP, 1, 3, AddressingMode::Implicit));
+
+        // PLA
+        map.insert(0x68, OpCode::new(Instruction::PLA, 1, 4, AddressingMode::Implicit));
+
+        // PLP
+        map.insert(0x28, OpCode::new(Instruction::PLP, 1, 4, AddressingMode::Implicit));
 
         map
     };

@@ -1,4 +1,5 @@
 mod opcodes;
+mod tests;
 
 use std::ops::BitAnd;
 use bitflags::bitflags;
@@ -18,16 +19,21 @@ bitflags! {
     // Z	Zero
     // C	Carry
 
+    #[derive(Clone)]
     pub struct CpuFlags: u8 {
         const CARRY         = 0b00000001;
         const ZERO          = 0b00000010;
         const INTERRUPT     = 0b00000100;
         const DECIMAL       = 0b00001000;
         const BREAK         = 0b00010000;
+        const BIT5          = 0b00100000;
         const OVERFLOW      = 0b01000000;
         const NEGATIVE      = 0b10000000;
     }
 }
+
+const STACK_PAGE: u16 = 0x0100;
+const STACK_START: u8 = 0xff;
 
 pub struct CPU {
     pub register_a: u8,
@@ -85,6 +91,16 @@ impl CPU {
         let lo = (data & 0xFF) as u8;
         self.mem_write(addr, lo);
         self.mem_write(addr + 1, hi);
+    }
+
+    fn stack_push(&mut self, data: u8) {
+        self.mem_write(STACK_PAGE + self.stack_pointer as u16, data);
+        self.stack_pointer = self.stack_pointer.wrapping_sub(1);
+    }
+
+    fn stack_pop(&mut self) -> u8 {
+        self.stack_pointer = self.stack_pointer.wrapping_add(1);
+        self.mem_read(STACK_PAGE + self.stack_pointer as u16)
     }
 
     fn get_operand_value(&mut self, mode: AddressingMode) -> u8 {
@@ -159,11 +175,7 @@ impl CPU {
         }
     }
 
-    /* ------------ OPCODE EXECUTES ------------ */
-
-    fn adc(&mut self, mode: AddressingMode) {
-        todo!("")
-    }
+    /* ------------ OPCODE IMPLEMENTATIONS ------------ */
 
     fn lda(&mut self, mode: AddressingMode) {
         let param = self.get_operand_value(mode);
@@ -213,11 +225,6 @@ impl CPU {
         self.update_z_and_n_flags(self.register_a);
     }
 
-    fn inx(&mut self, _: AddressingMode) {
-        self.register_x = self.register_x.wrapping_add(1);
-        self.update_z_and_n_flags(self.register_x);
-    }
-
     fn sta(&mut self, mode: AddressingMode) {
         let address = self.get_operand_address(mode);
         self.mem_write(address, self.register_a);
@@ -231,6 +238,35 @@ impl CPU {
     fn sty(&mut self, mode: AddressingMode) {
         let address = self.get_operand_address(mode);
         self.mem_write(address, self.register_y);
+    }
+
+    fn pha(&mut self, _: AddressingMode) { self.stack_push(self.register_a); }
+
+    fn php(&mut self, _: AddressingMode) {
+        let mut flags = self.status.clone();
+        flags.insert(CpuFlags::BREAK);
+        flags.insert(CpuFlags::BIT5);
+        self.stack_push(flags.bits());
+    }
+
+    fn pla(&mut self, _: AddressingMode) {
+        self.register_a = self.stack_pop();
+        self.update_z_and_n_flags(self.register_a)
+    }
+
+    fn plp(&mut self, _: AddressingMode) {
+        self.status = CpuFlags::from_bits(self.stack_pop()).unwrap_or_else(|| panic!("invalid status register"));
+        self.status.remove(CpuFlags::BIT5);
+        self.status.remove(CpuFlags::BREAK);
+    }
+
+    fn inx(&mut self, _: AddressingMode) {
+        self.register_x = self.register_x.wrapping_add(1);
+        self.update_z_and_n_flags(self.register_x);
+    }
+
+    fn adc(&mut self, mode: AddressingMode) {
+        todo!("")
     }
 
     /* ----------------------------------------- */
@@ -251,6 +287,7 @@ impl CPU {
         self.register_x = 0;
         self.register_y = 0;
         self.status = CpuFlags::empty();
+        self.stack_pointer = STACK_START;
 
         self.program_counter = self.mem_read_u16(0xFFFC);
     }
@@ -307,6 +344,18 @@ impl CPU {
                     Instruction::STY => {
                         self.sty(opcode.addressing_mode);
                     }
+                    Instruction::PHA => {
+                        self.pha(opcode.addressing_mode);
+                    }
+                    Instruction::PHP => {
+                        self.php(opcode.addressing_mode);
+                    }
+                    Instruction::PLA => {
+                        self.pla(opcode.addressing_mode);
+                    }
+                    Instruction::PLP => {
+                        self.plp(opcode.addressing_mode);
+                    }
                 }
 
                 self.program_counter += opcode.bytes - 1;
@@ -314,114 +363,5 @@ impl CPU {
                 panic!("Illegal instruction: 0x{:02X}", opcode_byte);
             }
         }
-    }
-}
-
-#[cfg(test)]
-mod test {
-    use super::*;
-
-    #[test]
-    fn test_0xa9_lda_zero_flag() {
-        let mut cpu = CPU::new();
-        cpu.load_and_run(vec![0xa9, 0x00, 0x00]);
-        assert_eq!(cpu.status.bitand(CpuFlags::ZERO).bits(), 0b10);
-    }
-
-    #[test]
-    fn test_0xa2_ldx_zero_flag() {
-        let mut cpu = CPU::new();
-        cpu.load_and_run(vec![0xa2, 0x00, 0x00]);
-        assert_eq!(cpu.status.bitand(CpuFlags::ZERO).bits(), 0b10);
-    }
-
-    #[test]
-    fn test_0xa2_ldy_zero_flag() {
-        let mut cpu = CPU::new();
-        cpu.load_and_run(vec![0xa0, 0x00, 0x00]);
-        assert_eq!(cpu.status.bitand(CpuFlags::ZERO).bits(), 0b10);
-    }
-
-    #[test]
-    fn test_0xaa_tax_move_a_to_x() {
-        let mut cpu = CPU::new();
-        cpu.load_and_run(vec![0xaa, 0x00]);
-
-        assert_eq!(cpu.register_x, 0)
-    }
-
-    #[test]
-    fn test_0xa8_tay_move_a_to_y() {
-        let mut cpu = CPU::new();
-        cpu.load_and_run(vec![0xa8, 0x00]);
-
-        assert_eq!(cpu.register_y, 0)
-    }
-
-    #[test]
-    fn test_0xba_tsx_move_sp_to_x() {
-        let mut cpu = CPU::new();
-        cpu.load_and_run(vec![0xba, 0x00]);
-
-        assert_eq!(cpu.register_x, 0)
-    }
-
-    #[test]
-    fn test_0x8a_txa_move_x_to_a() {
-        let mut cpu = CPU::new();
-        cpu.load_and_run(vec![0x8a, 0x00]);
-
-        assert_eq!(cpu.register_a, 0)
-    }
-
-    #[test]
-    fn test_0x9a_txs_move_x_to_sp() {
-        let mut cpu = CPU::new();
-        cpu.load_and_run(vec![0x9a, 0x00]);
-
-        assert_eq!(cpu.stack_pointer, 0)
-    }
-
-    #[test]
-    fn test_0x98_tya_move_y_to_a() {
-        let mut cpu = CPU::new();
-        cpu.load_and_run(vec![0x98, 0x00]);
-
-        assert_eq!(cpu.register_a, 0)
-    }
-
-    #[test]
-    fn test_0xa9_lda_immediate_load_data() {
-        let mut cpu = CPU::new();
-        cpu.load_and_run(vec![0xa9, 0x05, 0x00]);
-        assert_eq!(cpu.register_a, 0x05);
-        assert_eq!(cpu.status.bits() & CpuFlags::ZERO.bits(), 0b00);
-        assert_eq!(cpu.status.bits() & CpuFlags::NEGATIVE.bits(), 0);
-    }
-
-    #[test]
-    fn test_inx_overflow() {
-        let mut cpu = CPU::new();
-        cpu.load_and_run(vec![0xe8, 0xe8, 0x00]);
-
-        assert_eq!(cpu.register_x, 2)
-    }
-
-    #[test]
-    fn test_5_ops_working_together() {
-        let mut cpu = CPU::new();
-        cpu.load_and_run(vec![0xa9, 0xc0, 0xaa, 0xe8, 0x00]);
-
-        assert_eq!(cpu.register_x, 0xc1)
-    }
-
-    #[test]
-    fn test_lda_from_memory() {
-        let mut cpu = CPU::new();
-        cpu.mem_write(0x10, 0x55);
-
-        cpu.load_and_run(vec![0xa5, 0x10, 0x00]);
-
-        assert_eq!(cpu.register_a, 0x55);
     }
 }
