@@ -552,4 +552,87 @@ mod test {
         assert!(!cpu.status.contains(CpuFlags::CARRY));
         assert!(cpu.status.contains(CpuFlags::ZERO));
     }
+
+    #[test]
+    fn test_clc() {
+        let mut cpu = CPU::new();
+        cpu.load_and_run(vec![
+            0x38,           // SEC (set carry first)
+            0x18,           // CLC
+            0x00
+        ]);
+        assert!(!cpu.status.contains(CpuFlags::CARRY));
+    }
+
+    #[test]
+    fn test_sec() {
+        let mut cpu = CPU::new();
+        cpu.load_and_run(vec![
+            0x18,           // CLC (clear carry first)
+            0x38,           // SEC
+            0x00
+        ]);
+        assert!(cpu.status.contains(CpuFlags::CARRY));
+    }
+
+    #[test]
+    fn test_cld() {
+        let mut cpu = CPU::new();
+        cpu.load_and_run(vec![
+            0xf8,           // SED (set decimal first)
+            0xd8,           // CLD
+            0x00
+        ]);
+        assert!(!cpu.status.contains(CpuFlags::DECIMAL));
+    }
+
+    #[test]
+    fn test_sed() {
+        let mut cpu = CPU::new();
+        cpu.load_and_run(vec![
+            0xd8,           // CLD (clear decimal first)
+            0xf8,           // SED
+            0x00
+        ]);
+        assert!(cpu.status.contains(CpuFlags::DECIMAL));
+    }
+
+    #[test]
+    fn test_cli() {
+        let mut cpu = CPU::new();
+        cpu.load_and_run(vec![
+            0x78,           // SEI (set interrupt disable first)
+            0x58,           // CLI
+            0x00
+        ]);
+        assert!(!cpu.status.contains(CpuFlags::INTERRUPT));
+    }
+
+    #[test]
+    fn test_sei() {
+        let mut cpu = CPU::new();
+        cpu.load_and_run(vec![
+            0x58,           // CLI (clear interrupt disable first)
+            0x78,           // SEI
+            0x00
+        ]);
+        assert!(cpu.status.contains(CpuFlags::INTERRUPT));
+    }
+
+    #[test]
+    fn test_flag_combinations() {
+        let mut cpu = CPU::new();
+        cpu.load_and_run(vec![
+            0x38,           // SEC
+            0xf8,           // SED
+            0x78,           // SEI
+            0x18,           // CLC
+            0xd8,           // CLD
+            0x58,           // CLI
+            0x00
+        ]);
+        assert!(!cpu.status.contains(CpuFlags::CARRY));
+        assert!(!cpu.status.contains(CpuFlags::DECIMAL));
+        assert!(!cpu.status.contains(CpuFlags::INTERRUPT));
+    }
 }

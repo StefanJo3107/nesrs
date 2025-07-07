@@ -366,7 +366,7 @@ impl CPU {
     fn rol(&mut self, mode: AddressingMode) {
         let address = self.get_operand_address(mode);
         let mut value = self.get_operand_value(mode);
-        let old_carry = self.status.contains(CpuFlags::CARRY);;
+        let old_carry = self.status.contains(CpuFlags::CARRY);
         if value & 0b10000000 == 0b10000000 {
             self.status.insert(CpuFlags::CARRY);
         } else {
@@ -383,7 +383,7 @@ impl CPU {
     }
 
     fn rola(&mut self, _: AddressingMode) {
-        let old_carry = self.status.contains(CpuFlags::CARRY);;
+        let old_carry = self.status.contains(CpuFlags::CARRY);
         if self.register_a & 0b10000000 == 0b10000000 {
             self.status.insert(CpuFlags::CARRY);
         } else {
@@ -402,7 +402,7 @@ impl CPU {
     fn ror(&mut self, mode: AddressingMode) {
         let address = self.get_operand_address(mode);
         let mut value = self.get_operand_value(mode);
-        let old_carry = self.status.contains(CpuFlags::CARRY);;
+        let old_carry = self.status.contains(CpuFlags::CARRY);
         if value & 0b00000001 == 0b00000001 {
             self.status.insert(CpuFlags::CARRY);
         } else {
@@ -419,7 +419,7 @@ impl CPU {
     }
 
     fn rora(&mut self, _: AddressingMode) {
-        let old_carry = self.status.contains(CpuFlags::CARRY);;
+        let old_carry = self.status.contains(CpuFlags::CARRY);
         if self.register_a & 0b00000001 == 0b00000001 {
             self.status.insert(CpuFlags::CARRY);
         } else {
@@ -432,6 +432,34 @@ impl CPU {
         }
 
         self.update_z_and_n_flags(self.register_a);
+    }
+
+    fn clc(&mut self, _: AddressingMode) {
+        self.status.remove(CpuFlags::CARRY);
+    }
+
+    fn cld(&mut self, _: AddressingMode) {
+        self.status.remove(CpuFlags::DECIMAL);
+    }
+
+    fn cli(&mut self, _: AddressingMode) {
+        self.status.remove(CpuFlags::INTERRUPT);
+    }
+
+    fn clv(&mut self, _: AddressingMode) {
+        self.status.remove(CpuFlags::OVERFLOW);
+    }
+
+    fn sec(&mut self, _: AddressingMode) {
+        self.status.insert(CpuFlags::CARRY);
+    }
+
+    fn sed(&mut self, _: AddressingMode) {
+        self.status.insert(CpuFlags::DECIMAL);
+    }
+
+    fn sei(&mut self, _: AddressingMode) {
+        self.status.insert(CpuFlags::INTERRUPT);
     }
 
     fn adc(&mut self, mode: AddressingMode) {
@@ -572,6 +600,27 @@ impl CPU {
                     }
                     Instruction::RORA => {
                         self.rora(opcode.addressing_mode);
+                    }
+                    Instruction::CLC => {
+                        self.clc(opcode.addressing_mode);
+                    }
+                    Instruction::CLD => {
+                        self.cld(opcode.addressing_mode);
+                    }
+                    Instruction::CLI => {
+                        self.cli(opcode.addressing_mode);
+                    }
+                    Instruction::CLV => {
+                        self.clv(opcode.addressing_mode);
+                    }
+                    Instruction::SEC => {
+                        self.sec(opcode.addressing_mode);
+                    }
+                    Instruction::SED => {
+                        self.sed(opcode.addressing_mode);
+                    }
+                    Instruction::SEI => {
+                        self.sei(opcode.addressing_mode);
                     }
                 }
 

@@ -79,6 +79,22 @@ pub enum Instruction {
     // RORA - rotate right accumulator (shifts in zero bit on the left)
     RORA,
 
+    /* ----- Flag instructions ----- */
+    // CLC - clear carry
+    CLC,
+    // CLD - clear decimal
+    CLD,
+    // CLI - clear interrupt disabled
+    CLI,
+    // CLV - clear overflow
+    CLV,
+    // SEC - set carry
+    SEC,
+    // SED - set decimal
+    SED,
+    // SEI - set interrupt disable
+    SEI,
+
     // ADC - add memory to accumulator with carry
     ADC,
     // BRK - return from program
@@ -283,6 +299,27 @@ lazy_static::lazy_static! {
         map.insert(0x76, OpCode::new(Instruction::ROR, 2, 6, AddressingMode::ZeroPageX));
         map.insert(0x6E, OpCode::new(Instruction::ROR, 3, 6, AddressingMode::Absolute));
         map.insert(0x7E, OpCode::new(Instruction::ROR, 3, 7, AddressingMode::AbsoluteX));
+
+        // CLC
+        map.insert(0x18, OpCode::new(Instruction::CLC, 1, 2, AddressingMode::Implicit));
+
+        // CLD
+        map.insert(0xD8, OpCode::new(Instruction::CLD, 1, 2, AddressingMode::Implicit));
+
+        // CLI
+        map.insert(0x58, OpCode::new(Instruction::CLI, 1, 2, AddressingMode::Implicit));
+
+        // CLV
+        map.insert(0xB8, OpCode::new(Instruction::CLV, 1, 2, AddressingMode::Implicit));
+
+        // SEC
+        map.insert(0x38, OpCode::new(Instruction::SEC, 1, 2, AddressingMode::Implicit));
+
+        // SED
+        map.insert(0xF8, OpCode::new(Instruction::SED, 1, 2, AddressingMode::Implicit));
+
+        // SEI
+        map.insert(0x78, OpCode::new(Instruction::SEI, 1, 2, AddressingMode::Implicit));
 
         map
     };
