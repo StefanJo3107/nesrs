@@ -61,6 +61,24 @@ pub enum Instruction {
     // inclusive or with accumulator
     ORA,
 
+    /* ----- Shift and rotate instructions ----- */
+    // ASL - arithmetic shift left (shifts in a zero bit on the right)
+    ASL,
+    // ASLA - arithmetic shift left accumulator (shifts in a zero bit on the right)
+    ASLA,
+    // LSR - logical shift right (shifts in a zero bit on the left)
+    LSR,
+    // LSRA - logical shift right accumulator (shifts in a zero bit on the left)
+    LSRA,
+    // ROL - rotate left (shifts in carry bit on the right)
+    ROL,
+    // ROLA - rotate left accumulator (shifts in carry bit on the right)
+    ROLA,
+    // ROR - rotate right (shifts in zero bit on the left)
+    ROR,
+    // RORA - rotate right accumulator (shifts in zero bit on the left)
+    RORA,
+
     // ADC - add memory to accumulator with carry
     ADC,
     // BRK - return from program
@@ -229,6 +247,42 @@ lazy_static::lazy_static! {
         map.insert(0x19, OpCode::new(Instruction::ORA, 3, 4, AddressingMode::AbsoluteY));
         map.insert(0x01, OpCode::new(Instruction::ORA, 2, 6, AddressingMode::IndirectX));
         map.insert(0x11, OpCode::new(Instruction::ORA, 2, 5, AddressingMode::IndirectY));
+
+        // ASLA
+        map.insert(0x0A, OpCode::new(Instruction::ASLA, 1, 2, AddressingMode::Implicit));
+
+        // ASL
+        map.insert(0x06, OpCode::new(Instruction::ASL, 2, 5, AddressingMode::ZeroPage));
+        map.insert(0x16, OpCode::new(Instruction::ASL, 2, 6, AddressingMode::ZeroPageX));
+        map.insert(0x0E, OpCode::new(Instruction::ASL, 3, 6, AddressingMode::Absolute));
+        map.insert(0x1E, OpCode::new(Instruction::ASL, 3, 7, AddressingMode::AbsoluteX));
+
+        // LSRA
+        map.insert(0x4A, OpCode::new(Instruction::LSRA, 1, 2, AddressingMode::Implicit));
+
+        // LSR
+        map.insert(0x46, OpCode::new(Instruction::LSR, 2, 5, AddressingMode::ZeroPage));
+        map.insert(0x56, OpCode::new(Instruction::LSR, 2, 6, AddressingMode::ZeroPageX));
+        map.insert(0x4E, OpCode::new(Instruction::LSR, 3, 6, AddressingMode::Absolute));
+        map.insert(0x5E, OpCode::new(Instruction::LSR, 3, 7, AddressingMode::AbsoluteX));
+
+        // ROLA
+        map.insert(0x2A, OpCode::new(Instruction::ROLA, 1, 2, AddressingMode::Implicit));
+
+        // ROL
+        map.insert(0x26, OpCode::new(Instruction::ROL, 2, 5, AddressingMode::ZeroPage));
+        map.insert(0x36, OpCode::new(Instruction::ROL, 2, 6, AddressingMode::ZeroPageX));
+        map.insert(0x2E, OpCode::new(Instruction::ROL, 3, 6, AddressingMode::Absolute));
+        map.insert(0x3E, OpCode::new(Instruction::ROL, 3, 7, AddressingMode::AbsoluteX));
+
+        // RORA
+        map.insert(0x6A, OpCode::new(Instruction::RORA, 1, 2, AddressingMode::Implicit));
+
+        // ROL
+        map.insert(0x66, OpCode::new(Instruction::ROR, 2, 5, AddressingMode::ZeroPage));
+        map.insert(0x76, OpCode::new(Instruction::ROR, 2, 6, AddressingMode::ZeroPageX));
+        map.insert(0x6E, OpCode::new(Instruction::ROR, 3, 6, AddressingMode::Absolute));
+        map.insert(0x7E, OpCode::new(Instruction::ROR, 3, 7, AddressingMode::AbsoluteX));
 
         map
     };

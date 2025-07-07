@@ -444,4 +444,112 @@ mod test {
         assert!(cpu.status.contains(CpuFlags::NEGATIVE));
         assert!(!cpu.status.contains(CpuFlags::ZERO));
     }
+
+    #[test]
+    fn test_asl_accumulator() {
+        let mut cpu = CPU::new();
+        cpu.load_and_run(vec![
+            0xa9, 0x42,     // LDA #$42
+            0x0a,           // ASL A
+            0x00
+        ]);
+        assert_eq!(cpu.register_a, 0x84);
+        assert!(!cpu.status.contains(CpuFlags::CARRY));
+        assert!(!cpu.status.contains(CpuFlags::ZERO));
+        assert!(cpu.status.contains(CpuFlags::NEGATIVE));
+    }
+
+    #[test]
+    fn test_asl_carry() {
+        let mut cpu = CPU::new();
+        cpu.load_and_run(vec![
+            0xa9, 0x81,     // LDA #$81
+            0x0a,           // ASL A
+            0x00
+        ]);
+        assert_eq!(cpu.register_a, 0x02);
+        assert!(cpu.status.contains(CpuFlags::CARRY));
+        assert!(!cpu.status.contains(CpuFlags::ZERO));
+    }
+
+    #[test]
+    fn test_asl_memory() {
+        let mut cpu = CPU::new();
+        cpu.load_and_run(vec![
+            0xa9, 0x33,     // LDA #$33
+            0x85, 0x20,     // STA $20
+            0x06, 0x20,     // ASL $20
+            0x00
+        ]);
+        assert_eq!(cpu.mem_read(0x20), 0x66);
+        assert!(!cpu.status.contains(CpuFlags::CARRY));
+    }
+
+    #[test]
+    fn test_lsr_accumulator() {
+        let mut cpu = CPU::new();
+        cpu.load_and_run(vec![
+            0xa9, 0x84,     // LDA #$84
+            0x4a,           // LSR A
+            0x00
+        ]);
+        assert_eq!(cpu.register_a, 0x42);
+        assert!(!cpu.status.contains(CpuFlags::CARRY));
+        assert!(!cpu.status.contains(CpuFlags::ZERO));
+    }
+
+    #[test]
+    fn test_lsr_carry_zero() {
+        let mut cpu = CPU::new();
+        cpu.load_and_run(vec![
+            0xa9, 0x01,     // LDA #$01
+            0x4a,           // LSR A
+            0x00
+        ]);
+        assert_eq!(cpu.register_a, 0x00);
+        assert!(cpu.status.contains(CpuFlags::CARRY));
+        assert!(cpu.status.contains(CpuFlags::ZERO));
+    }
+
+    #[test]
+    fn test_rol() {
+        let mut cpu = CPU::new();
+        cpu.load_and_run(vec![
+            0xa9, 0x41,     // LDA #$41
+            0x0a,           // ASL A (sets carry)
+            0xa9, 0x80,     // LDA #$80
+            0x2a,           // ROL A (rotate with carry)
+            0x00
+        ]);
+        assert_eq!(cpu.register_a, 0);
+        assert!(cpu.status.contains(CpuFlags::CARRY));
+    }
+
+    #[test]
+    fn test_ror() {
+        let mut cpu = CPU::new();
+        cpu.load_and_run(vec![
+            0xa9, 0x02,     // LDA #$02
+            0x4a,           // LSR A (sets carry)
+            0xa9, 0x80,     // LDA #$80
+            0x6a,           // ROR A (rotate with carry)
+            0x00
+        ]);
+        assert_eq!(cpu.register_a, 0x40);
+        assert!(!cpu.status.contains(CpuFlags::CARRY));
+    }
+
+    #[test]
+    fn test_ror_memory_zero() {
+        let mut cpu = CPU::new();
+        cpu.load_and_run(vec![
+            0xa9, 0x00,     // LDA #$00
+            0x85, 0x40,     // STA $40
+            0x66, 0x40,     // ROR $40
+            0x00
+        ]);
+        assert_eq!(cpu.mem_read(0x40), 0x00);
+        assert!(!cpu.status.contains(CpuFlags::CARRY));
+        assert!(cpu.status.contains(CpuFlags::ZERO));
+    }
 }

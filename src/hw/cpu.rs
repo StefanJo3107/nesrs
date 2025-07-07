@@ -313,6 +313,127 @@ impl CPU {
         self.update_z_and_n_flags(self.register_a);
     }
 
+    fn asl(&mut self, mode: AddressingMode) {
+        let address = self.get_operand_address(mode);
+        let mut value = self.get_operand_value(mode);
+        if value & 0b10000000 == 0b10000000 {
+            self.status.insert(CpuFlags::CARRY);
+        } else {
+            self.status.remove(CpuFlags::CARRY);
+        }
+
+        value <<= 1;
+        self.mem_write(address, value);
+        self.update_z_and_n_flags(value);
+    }
+
+    fn asla(&mut self, _: AddressingMode) {
+        if self.register_a & 0b10000000 == 0b10000000 {
+            self.status.insert(CpuFlags::CARRY);
+        } else {
+            self.status.remove(CpuFlags::CARRY);
+        }
+
+        self.register_a <<= 1;
+        self.update_z_and_n_flags(self.register_a);
+    }
+
+    fn lsr(&mut self, mode: AddressingMode) {
+        let address = self.get_operand_address(mode);
+        let mut value = self.get_operand_value(mode);
+        if value & 0b00000001 == 0b00000001 {
+            self.status.insert(CpuFlags::CARRY);
+        } else {
+            self.status.remove(CpuFlags::CARRY);
+        }
+
+        value >>= 1;
+        self.mem_write(address, value);
+        self.update_z_and_n_flags(value);
+    }
+
+    fn lsra(&mut self, _: AddressingMode) {
+        if self.register_a & 0b00000001 == 0b00000001 {
+            self.status.insert(CpuFlags::CARRY);
+        } else {
+            self.status.remove(CpuFlags::CARRY);
+        }
+
+        self.register_a >>= 1;
+        self.update_z_and_n_flags(self.register_a);
+    }
+
+    fn rol(&mut self, mode: AddressingMode) {
+        let address = self.get_operand_address(mode);
+        let mut value = self.get_operand_value(mode);
+        let old_carry = self.status.contains(CpuFlags::CARRY);;
+        if value & 0b10000000 == 0b10000000 {
+            self.status.insert(CpuFlags::CARRY);
+        } else {
+            self.status.remove(CpuFlags::CARRY);
+        }
+
+        value <<= 1;
+        if old_carry {
+            value |= 1;
+        }
+
+        self.mem_write(address, value);
+        self.update_z_and_n_flags(value);
+    }
+
+    fn rola(&mut self, _: AddressingMode) {
+        let old_carry = self.status.contains(CpuFlags::CARRY);;
+        if self.register_a & 0b10000000 == 0b10000000 {
+            self.status.insert(CpuFlags::CARRY);
+        } else {
+            self.status.remove(CpuFlags::CARRY);
+        }
+
+        self.register_a <<= 1;
+        if old_carry {
+            self.register_a |= 1;
+        }
+
+        self.update_z_and_n_flags(self.register_a);
+    }
+
+
+    fn ror(&mut self, mode: AddressingMode) {
+        let address = self.get_operand_address(mode);
+        let mut value = self.get_operand_value(mode);
+        let old_carry = self.status.contains(CpuFlags::CARRY);;
+        if value & 0b00000001 == 0b00000001 {
+            self.status.insert(CpuFlags::CARRY);
+        } else {
+            self.status.remove(CpuFlags::CARRY);
+        }
+
+        value >>= 1;
+        if old_carry {
+            value |= 0b10000000;
+        }
+
+        self.mem_write(address, value);
+        self.update_z_and_n_flags(value);
+    }
+
+    fn rora(&mut self, _: AddressingMode) {
+        let old_carry = self.status.contains(CpuFlags::CARRY);;
+        if self.register_a & 0b00000001 == 0b00000001 {
+            self.status.insert(CpuFlags::CARRY);
+        } else {
+            self.status.remove(CpuFlags::CARRY);
+        }
+
+        self.register_a >>= 1;
+        if old_carry {
+            self.register_a |= 0b10000000;
+        }
+
+        self.update_z_and_n_flags(self.register_a);
+    }
+
     fn adc(&mut self, mode: AddressingMode) {
         todo!("")
     }
@@ -427,6 +548,30 @@ impl CPU {
                     }
                     Instruction::ORA => {
                         self.ora(opcode.addressing_mode);
+                    }
+                    Instruction::ASL => {
+                        self.asl(opcode.addressing_mode);
+                    }
+                    Instruction::ASLA => {
+                        self.asla(opcode.addressing_mode);
+                    }
+                    Instruction::LSR => {
+                        self.lsr(opcode.addressing_mode);
+                    }
+                    Instruction::LSRA => {
+                        self.lsra(opcode.addressing_mode);
+                    }
+                    Instruction::ROL => {
+                        self.rol(opcode.addressing_mode);
+                    }
+                    Instruction::ROLA => {
+                        self.rola(opcode.addressing_mode);
+                    }
+                    Instruction::ROR => {
+                        self.ror(opcode.addressing_mode);
+                    }
+                    Instruction::RORA => {
+                        self.rora(opcode.addressing_mode);
                     }
                 }
 
