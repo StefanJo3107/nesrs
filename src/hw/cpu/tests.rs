@@ -635,4 +635,140 @@ mod test {
         assert!(!cpu.status.contains(CpuFlags::DECIMAL));
         assert!(!cpu.status.contains(CpuFlags::INTERRUPT));
     }
+
+    #[test]
+    fn test_cmp_immediate_equal() {
+        let mut cpu = CPU::new();
+        cpu.load_and_run(vec![
+            0xa9, 0x42,     // LDA #$42
+            0xc9, 0x42,     // CMP #$42
+            0x00
+        ]);
+        assert!(cpu.status.contains(CpuFlags::ZERO));
+        assert!(cpu.status.contains(CpuFlags::CARRY));
+        assert!(!cpu.status.contains(CpuFlags::NEGATIVE));
+    }
+
+    #[test]
+    fn test_cmp_immediate_greater() {
+        let mut cpu = CPU::new();
+        cpu.load_and_run(vec![
+            0xa9, 0x80,     // LDA #$80
+            0xc9, 0x7f,     // CMP #$7f
+            0x00
+        ]);
+        assert!(!cpu.status.contains(CpuFlags::ZERO));
+        assert!(cpu.status.contains(CpuFlags::CARRY));
+        assert!(!cpu.status.contains(CpuFlags::NEGATIVE));
+    }
+
+    #[test]
+    fn test_cmp_immediate_less() {
+        let mut cpu = CPU::new();
+        cpu.load_and_run(vec![
+            0xa9, 0x40,     // LDA #$40
+            0xc9, 0x41,     // CMP #$41
+            0x00
+        ]);
+        assert!(!cpu.status.contains(CpuFlags::ZERO));
+        assert!(!cpu.status.contains(CpuFlags::CARRY));
+        assert!(cpu.status.contains(CpuFlags::NEGATIVE));
+    }
+
+    #[test]
+    fn test_cmp_memory() {
+        let mut cpu = CPU::new();
+        cpu.load_and_run(vec![
+            0xa9, 0x30,     // LDA #$30
+            0x85, 0x20,     // STA $20
+            0xa9, 0x50,     // LDA #$50
+            0xc5, 0x20,     // CMP $20
+            0x00
+        ]);
+        assert!(!cpu.status.contains(CpuFlags::ZERO));
+        assert!(cpu.status.contains(CpuFlags::CARRY));
+        assert!(!cpu.status.contains(CpuFlags::NEGATIVE));
+    }
+
+    #[test]
+    fn test_cpx_immediate() {
+        let mut cpu = CPU::new();
+        cpu.load_and_run(vec![
+            0xa2, 0xff,     // LDX #$ff
+            0xe0, 0xfe,     // CPX #$fe
+            0x00
+        ]);
+        assert!(!cpu.status.contains(CpuFlags::ZERO));
+        assert!(cpu.status.contains(CpuFlags::CARRY));
+        assert!(!cpu.status.contains(CpuFlags::NEGATIVE));
+    }
+
+    #[test]
+    fn test_cpx_zero_page() {
+        let mut cpu = CPU::new();
+        cpu.load_and_run(vec![
+            0xa2, 0x00,     // LDX #$00
+            0x86, 0x10,     // STX $10
+            0xa2, 0x80,     // LDX #$80
+            0xe4, 0x10,     // CPX $10
+            0x00
+        ]);
+        assert!(!cpu.status.contains(CpuFlags::ZERO));
+        assert!(cpu.status.contains(CpuFlags::CARRY));
+        assert!(cpu.status.contains(CpuFlags::NEGATIVE));
+    }
+
+    #[test]
+    fn test_cpy_immediate_equal() {
+        let mut cpu = CPU::new();
+        cpu.load_and_run(vec![
+            0xa0, 0x37,     // LDY #$37
+            0xc0, 0x37,     // CPY #$37
+            0x00
+        ]);
+        assert!(cpu.status.contains(CpuFlags::ZERO));
+        assert!(cpu.status.contains(CpuFlags::CARRY));
+        assert!(!cpu.status.contains(CpuFlags::NEGATIVE));
+    }
+
+    #[test]
+    fn test_cpy_absolute() {
+        let mut cpu = CPU::new();
+        cpu.load_and_run(vec![
+            0xa0, 0x01,     // LDY #$01
+            0x8c, 0x00, 0x02, // STY $0200
+            0xa0, 0x10,     // LDY #$10
+            0xcc, 0x00, 0x02, // CPY $0200
+            0x00
+        ]);
+        assert!(!cpu.status.contains(CpuFlags::ZERO));
+        assert!(cpu.status.contains(CpuFlags::CARRY));
+        assert!(!cpu.status.contains(CpuFlags::NEGATIVE));
+    }
+
+    #[test]
+    fn test_cmp_negative_result() {
+        let mut cpu = CPU::new();
+        cpu.load_and_run(vec![
+            0xa9, 0x40,     // LDA #$40
+            0xc9, 0x80,     // CMP #$80
+            0x00
+        ]);
+        assert!(!cpu.status.contains(CpuFlags::ZERO));
+        assert!(!cpu.status.contains(CpuFlags::CARRY));
+        assert!(cpu.status.contains(CpuFlags::NEGATIVE));
+    }
+
+    #[test]
+    fn test_cpx_wrap_around() {
+        let mut cpu = CPU::new();
+        cpu.load_and_run(vec![
+            0xa2, 0x00,     // LDX #$00
+            0xe0, 0xff,     // CPX #$ff
+            0x00
+        ]);
+        assert!(!cpu.status.contains(CpuFlags::ZERO));
+        assert!(!cpu.status.contains(CpuFlags::CARRY));
+        assert!(!cpu.status.contains(CpuFlags::NEGATIVE));
+    }
 }

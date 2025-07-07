@@ -95,6 +95,14 @@ pub enum Instruction {
     // SEI - set interrupt disable
     SEI,
 
+    /* ----- Comparisons ----- */
+    // CMP - compare with accumulator
+    CMP,
+    //CPX - compare with register X
+    CPX,
+    // CPY - compare with register Y
+    CPY,
+
     // ADC - add memory to accumulator with carry
     ADC,
     // BRK - return from program
@@ -320,6 +328,26 @@ lazy_static::lazy_static! {
 
         // SEI
         map.insert(0x78, OpCode::new(Instruction::SEI, 1, 2, AddressingMode::Implicit));
+
+        // CMP
+        map.insert(0xC9, OpCode::new(Instruction::CMP, 2, 2, AddressingMode::Immediate));
+        map.insert(0xC5, OpCode::new(Instruction::CMP, 2, 3, AddressingMode::ZeroPage));
+        map.insert(0xD5, OpCode::new(Instruction::CMP, 2, 4, AddressingMode::ZeroPageX));
+        map.insert(0xCD, OpCode::new(Instruction::CMP, 3, 4, AddressingMode::Absolute));
+        map.insert(0xDD, OpCode::new(Instruction::CMP, 3, 4, AddressingMode::AbsoluteX));
+        map.insert(0xD9, OpCode::new(Instruction::CMP, 3, 4, AddressingMode::AbsoluteY));
+        map.insert(0xC1, OpCode::new(Instruction::CMP, 2, 6, AddressingMode::IndirectX));
+        map.insert(0xD1, OpCode::new(Instruction::CMP, 2, 5, AddressingMode::IndirectY));
+
+        // CPX
+        map.insert(0xE0, OpCode::new(Instruction::CPX, 2, 2, AddressingMode::Immediate));
+        map.insert(0xE4, OpCode::new(Instruction::CPX, 2, 3, AddressingMode::ZeroPage));
+        map.insert(0xEC, OpCode::new(Instruction::CPX, 3, 4, AddressingMode::Absolute));
+
+        // CPY
+        map.insert(0xC0, OpCode::new(Instruction::CPY, 2, 2, AddressingMode::Immediate));
+        map.insert(0xC4, OpCode::new(Instruction::CPY, 2, 3, AddressingMode::ZeroPage));
+        map.insert(0xCC, OpCode::new(Instruction::CPY, 3, 4, AddressingMode::Absolute));
 
         map
     };

@@ -462,6 +462,42 @@ impl CPU {
         self.status.insert(CpuFlags::INTERRUPT);
     }
 
+    fn cmp(&mut self, mode: AddressingMode) {
+        let value = self.get_operand_value(mode);
+
+        if self.register_a < value {
+            self.status.remove(CpuFlags::CARRY);
+        } else {
+            self.status.insert(CpuFlags::CARRY);
+        }
+
+        self.update_z_and_n_flags(self.register_a.wrapping_sub(value));
+    }
+
+    fn cpx(&mut self, mode: AddressingMode) {
+        let value = self.get_operand_value(mode);
+
+        if self.register_x < value {
+            self.status.remove(CpuFlags::CARRY);
+        } else {
+            self.status.insert(CpuFlags::CARRY);
+        }
+
+        self.update_z_and_n_flags(self.register_x.wrapping_sub(value));
+    }
+
+    fn cpy(&mut self, mode: AddressingMode) {
+        let value = self.get_operand_value(mode);
+
+        if self.register_y < value {
+            self.status.remove(CpuFlags::CARRY);
+        } else {
+            self.status.insert(CpuFlags::CARRY);
+        }
+
+        self.update_z_and_n_flags(self.register_y.wrapping_sub(value));
+    }
+
     fn adc(&mut self, mode: AddressingMode) {
         todo!("")
     }
@@ -621,6 +657,15 @@ impl CPU {
                     }
                     Instruction::SEI => {
                         self.sei(opcode.addressing_mode);
+                    }
+                    Instruction::CMP => {
+                        self.cmp(opcode.addressing_mode);
+                    }
+                    Instruction::CPX => {
+                        self.cpx(opcode.addressing_mode);
+                    }
+                    Instruction::CPY => {
+                        self.cpy(opcode.addressing_mode);
                     }
                 }
 
