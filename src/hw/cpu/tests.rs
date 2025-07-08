@@ -886,4 +886,100 @@ mod test {
         ]);
         assert!(cpu.program_counter > 0x0600);
     }
+
+    const PROGRAM_START: u16 = 0x8000;
+    const RESET_VECTOR: u16 = 0xFFFC;
+
+    #[test]
+    fn test_jmp_absolute() {
+        let mut cpu = CPU::new();
+
+        cpu.load_and_run(vec![
+            0x4C, 0x03, 0x80, // JMP $8003
+            0xA9, 0x01,     // LDA #$01 (skipped)
+            0xA9, 0x42,     // LDA #$42 (executed)
+            0x00            // BRK
+        ]);
+        assert_eq!(cpu.register_a, 0x42);
+    }
+
+    #[test]
+    fn test_jmp_indirect() {
+        let mut cpu = CPU::new();
+
+        cpu.mem_write_u16(0x0200, 0x8005);
+
+        cpu.load_and_run(vec![
+            0x6C, 0x00, 0x02, // JMP ($0200)
+            0xA9, 0x01,     // LDA #$01 (skipped)
+            0xA9, 0x42,     // LDA #$42 (executed)
+            0x00            // BRK
+        ]);
+        assert_eq!(cpu.register_a, 0x42);
+    }
+
+    #[test]
+    fn test_jsr_rts() {
+        let mut cpu = CPU::new();
+
+        cpu.load_and_run(vec![
+            0x20, 0x06, 0x80, // JSR $8006
+            0xA9, 0x01,     // LDA #$01 (return point)
+            0x00,           // BRK
+            0xA9, 0x42,     // LDA #$42 (subroutine)
+            0x60,           // RTS
+            0x00            // BRK
+        ]);
+        assert_eq!(cpu.register_a, 0x01);
+        assert_eq!(cpu.stack_pointer, 0xFF);
+    }
+
+    #[test]
+    fn test_jmp_indirect_wrap_bug() {
+        let mut cpu = CPU::new();
+
+        cpu.mem_write(0x02FF, 0x05);
+        cpu.mem_write(0x0200, 0x80);
+
+        cpu.load_and_run(vec![
+            0x6C, 0xFF, 0x02, // JMP ($02FF) (will read $02FF and $0200)
+            0xA9, 0x01,     // LDA #$01 (skipped)
+            0xA9, 0x42,     // LDA #$42 (executed at $8007)
+            0x00            // BRK
+        ]);
+        assert_eq!(cpu.register_a, 0x42);
+    }
+
+    #[test]
+    fn test_nested_subroutines() {
+        let mut cpu = CPU::new();
+
+        cpu.load_and_run(vec![
+            0x20, 0x04, 0x80, // JSR $8006 (sub1)
+            0x00,           // BRK
+            // Subroutine 1 ($8006)
+            0xA9, 0x01,     // LDA #$01
+            0x20, 0x09, 0x80, // JSR $800B (sub2)
+            0x60,           // RTS (from sub1)
+            // Subroutine 2 ($800B)
+            0xA9, 0x42,     // LDA #$42
+            0x60,           // RTS (from sub2)
+            0x00            // BRK
+        ]);
+        assert_eq!(cpu.register_a, 0x01);
+        assert_eq!(cpu.stack_pointer, 0xFF);
+    }
+
+    #[test]
+    fn test_rts_stack_behavior() {
+        let mut cpu = CPU::new();
+
+        cpu.load_and_run(vec![
+            0x20, 0x04, 0x80, // JSR $8004
+            0x00,           // BRK
+            0x60,           // RTS (should return to $8003)
+            0x00            // BRK
+        ]);
+        assert_eq!(cpu.program_counter, 0x8004);
+    }
 }

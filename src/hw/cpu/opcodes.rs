@@ -121,6 +121,14 @@ pub enum Instruction {
     // BVS - branch on overflow set
     BVS,
 
+    /* ----- Jumps and subroutines ----- */
+    // JMP - jump
+    JMP,
+    // JSR - jump subroutine
+    JSR,
+    // RTS - return from subroutine
+    RTS,
+
     // ADC - add memory to accumulator with carry
     ADC,
     // BRK - return from program
@@ -390,6 +398,16 @@ lazy_static::lazy_static! {
 
         // BVS
         map.insert(0x70, OpCode::new(Instruction::BVS, 2, 2, AddressingMode::Relative));
+
+        // JMP
+        map.insert(0x4C, OpCode::new(Instruction::JMP, 3, 3, AddressingMode::Absolute));
+        map.insert(0x6C, OpCode::new(Instruction::JMP, 3, 5, AddressingMode::Indirect));
+
+        // JSR
+        map.insert(0x20, OpCode::new(Instruction::JSR, 3, 6, AddressingMode::Absolute));
+
+        // RTS
+        map.insert(0x60, OpCode::new(Instruction::RTS, 1, 6, AddressingMode::Implicit));
 
         map
     };

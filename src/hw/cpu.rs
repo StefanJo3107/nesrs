@@ -1,6 +1,7 @@
 mod opcodes;
 mod tests;
 
+use std::cmp::PartialEq;
 use bitflags::bitflags;
 use crate::hw::cpu::opcodes::{Instruction, OPCODES};
 
@@ -44,7 +45,7 @@ pub struct CPU {
     memory: [u8; 0xFFFF],
 }
 
-#[derive(Debug, Clone, Copy)]
+#[derive(Debug, Clone, Copy, Eq, PartialEq)]
 pub enum AddressingMode {
     Immediate,
     ZeroPage,
@@ -53,6 +54,7 @@ pub enum AddressingMode {
     Absolute,
     AbsoluteX,
     AbsoluteY,
+    Indirect,
     IndirectX,
     IndirectY,
     Implicit,
@@ -103,6 +105,20 @@ impl CPU {
         self.mem_read(STACK_PAGE + self.stack_pointer as u16)
     }
 
+    fn stack_push_u16(&mut self, data: u16) {
+        let hi = (data >> 8) as u8;
+        let lo = (data & 0xff) as u8;
+        self.stack_push(hi);
+        self.stack_push(lo);
+    }
+
+    fn stack_pop_u16(&mut self) -> u16 {
+        let lo = self.stack_pop() as u16;
+        let hi = self.stack_pop() as u16;
+
+        hi << 8 | lo
+    }
+
     fn get_operand_value(&mut self, mode: AddressingMode) -> u8 {
         let address = self.get_operand_address(mode);
         self.mem_read(address)
@@ -134,6 +150,14 @@ impl CPU {
             AddressingMode::AbsoluteY => {
                 let base = self.mem_read_u16(self.program_counter);
                 base.wrapping_add(self.register_y as u16)
+            }
+
+            AddressingMode::Indirect => {
+                let ptr = self.mem_read(self.program_counter);
+
+                let lo = self.mem_read(ptr as u16);
+                let hi = self.mem_read(ptr.wrapping_add(1) as u16);
+                (hi as u16) << 8 | (lo as u16)
             }
 
             AddressingMode::IndirectX => {
@@ -538,6 +562,37 @@ impl CPU {
         self.branch(self.status.contains(CpuFlags::OVERFLOW));
     }
 
+    fn jmp(&mut self, mode: AddressingMode) {
+        if mode == AddressingMode::Absolute {
+            let jump = self.mem_read_u16(self.program_counter);
+            self.program_counter = jump;
+        } else if mode == AddressingMode::Indirect {
+            let mem_address = self.mem_read_u16(self.program_counter);
+
+            // let indirect_ref = self.mem_read_u16(mem_address);
+            // 6502 bug with page boundary (http://www.6502.org/tutorials/6502opcodes.html#JMP)
+            let indirect_ref = if mem_address & 0x00FF == 0x00FF {
+                let lo = self.mem_read(mem_address);
+                let hi = self.mem_read(mem_address & 0xFF00);
+                (hi as u16) << 8 | (lo as u16)
+            } else {
+                self.mem_read_u16(mem_address)
+            };
+
+            self.program_counter = indirect_ref;
+        }
+    }
+
+    fn jsr(&mut self, mode: AddressingMode) {
+        self.stack_push_u16(self.program_counter + 2);
+        let address = self.get_operand_address(mode);
+        self.program_counter = address
+    }
+
+    fn rts(&mut self, _: AddressingMode) {
+        self.program_counter = self.stack_pop_u16();
+    }
+
     fn adc(&mut self, mode: AddressingMode) {
         todo!("")
     }
@@ -731,6 +786,15 @@ impl CPU {
                     }
                     Instruction::BVS => {
                         self.bvs(opcode.addressing_mode);
+                    }
+                    Instruction::JMP => {
+                        self.jmp(opcode.addressing_mode);
+                    }
+                    Instruction::JSR => {
+                        self.jsr(opcode.addressing_mode);
+                    }
+                    Instruction::RTS => {
+                        self.rts(opcode.addressing_mode);
                     }
                 }
 
