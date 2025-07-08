@@ -103,6 +103,24 @@ pub enum Instruction {
     // CPY - compare with register Y
     CPY,
 
+    /* ----- Conditional branch instructions ----- */
+    // BCC - branch on carry clear
+    BCC,
+    // BCS - branch on carry set
+    BCS,
+    // BEQ - branch on equal (zero flag set)
+    BEQ,
+    // BMI - branch on minus (negative flag set)
+    BMI,
+    // BNE - branch on not equal (zero flag clear)
+    BNE,
+    // BPL - branch on plus (negative flag clear)
+    BPL,
+    // BVC - branch on overflow clear
+    BVC,
+    // BVS - branch on overflow set
+    BVS,
+
     // ADC - add memory to accumulator with carry
     ADC,
     // BRK - return from program
@@ -348,6 +366,30 @@ lazy_static::lazy_static! {
         map.insert(0xC0, OpCode::new(Instruction::CPY, 2, 2, AddressingMode::Immediate));
         map.insert(0xC4, OpCode::new(Instruction::CPY, 2, 3, AddressingMode::ZeroPage));
         map.insert(0xCC, OpCode::new(Instruction::CPY, 3, 4, AddressingMode::Absolute));
+
+        // BCC
+        map.insert(0x90, OpCode::new(Instruction::BCC, 2, 2, AddressingMode::Relative));
+
+        // BCS
+        map.insert(0xB0, OpCode::new(Instruction::BCS, 2, 2, AddressingMode::Relative));
+
+        // BEQ
+        map.insert(0xF0, OpCode::new(Instruction::BEQ, 2, 2, AddressingMode::Relative));
+
+        // BMI
+        map.insert(0x30, OpCode::new(Instruction::BMI, 2, 2, AddressingMode::Relative));
+
+        // BNE
+        map.insert(0xD0, OpCode::new(Instruction::BNE, 2, 2, AddressingMode::Relative));
+
+        // BPL
+        map.insert(0x10, OpCode::new(Instruction::BPL, 2, 2, AddressingMode::Relative));
+
+        // BVC
+        map.insert(0x50, OpCode::new(Instruction::BVC, 2, 2, AddressingMode::Relative));
+
+        // BVS
+        map.insert(0x70, OpCode::new(Instruction::BVS, 2, 2, AddressingMode::Relative));
 
         map
     };

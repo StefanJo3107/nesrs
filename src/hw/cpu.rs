@@ -56,6 +56,7 @@ pub enum AddressingMode {
     IndirectX,
     IndirectY,
     Implicit,
+    Relative,
 }
 
 impl CPU {
@@ -154,7 +155,7 @@ impl CPU {
                 deref
             }
 
-            AddressingMode::Implicit => {
+            AddressingMode::Implicit | AddressingMode::Relative => {
                 panic!("mode {:?} is not supported", mode);
             }
         }
@@ -498,6 +499,45 @@ impl CPU {
         self.update_z_and_n_flags(self.register_y.wrapping_sub(value));
     }
 
+    fn branch(&mut self, condition: bool) {
+        if condition {
+            let offset: i8 = self.mem_read(self.program_counter) as i8;
+            let jump_addr = self.program_counter.wrapping_add(1).wrapping_add(offset as u16);
+            self.program_counter = jump_addr;
+        }
+    }
+    fn bcc(&mut self, _: AddressingMode) {
+        self.branch(!self.status.contains(CpuFlags::CARRY));
+    }
+
+    fn bcs(&mut self, _: AddressingMode) {
+        self.branch(self.status.contains(CpuFlags::CARRY));
+    }
+
+    fn beq(&mut self, _: AddressingMode) {
+        self.branch(self.status.contains(CpuFlags::ZERO));
+    }
+
+    fn bmi(&mut self, _: AddressingMode) {
+        self.branch(self.status.contains(CpuFlags::NEGATIVE));
+    }
+
+    fn bne(&mut self, _: AddressingMode) {
+        self.branch(!self.status.contains(CpuFlags::ZERO));
+    }
+
+    fn bpl(&mut self, _: AddressingMode) {
+        self.branch(!self.status.contains(CpuFlags::NEGATIVE));
+    }
+
+    fn bvc(&mut self, _: AddressingMode) {
+        self.branch(!self.status.contains(CpuFlags::OVERFLOW));
+    }
+
+    fn bvs(&mut self, _: AddressingMode) {
+        self.branch(self.status.contains(CpuFlags::OVERFLOW));
+    }
+
     fn adc(&mut self, mode: AddressingMode) {
         todo!("")
     }
@@ -529,6 +569,7 @@ impl CPU {
         loop {
             let opcode_byte = self.mem_read(self.program_counter);
             self.program_counter += 1;
+            let old_counter = self.program_counter;
 
             if let Some(opcode) = OPCODES.get(&opcode_byte) {
                 match opcode.instruction {
@@ -667,9 +708,35 @@ impl CPU {
                     Instruction::CPY => {
                         self.cpy(opcode.addressing_mode);
                     }
+                    Instruction::BCC => {
+                        self.bcc(opcode.addressing_mode);
+                    }
+                    Instruction::BCS => {
+                        self.bcs(opcode.addressing_mode);
+                    }
+                    Instruction::BEQ => {
+                        self.beq(opcode.addressing_mode);
+                    }
+                    Instruction::BMI => {
+                        self.bmi(opcode.addressing_mode);
+                    }
+                    Instruction::BNE => {
+                        self.bne(opcode.addressing_mode);
+                    }
+                    Instruction::BPL => {
+                        self.bpl(opcode.addressing_mode);
+                    }
+                    Instruction::BVC => {
+                        self.bvc(opcode.addressing_mode);
+                    }
+                    Instruction::BVS => {
+                        self.bvs(opcode.addressing_mode);
+                    }
                 }
 
-                self.program_counter += opcode.bytes - 1;
+                if old_counter == self.program_counter {
+                    self.program_counter += opcode.bytes - 1;
+                }
             } else {
                 panic!("Illegal instruction: 0x{:02X}", opcode_byte);
             }

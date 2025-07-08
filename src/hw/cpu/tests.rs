@@ -771,4 +771,119 @@ mod test {
         assert!(!cpu.status.contains(CpuFlags::CARRY));
         assert!(!cpu.status.contains(CpuFlags::NEGATIVE));
     }
+
+    #[test]
+    fn test_bcc_taken() {
+        let mut cpu = CPU::new();
+        cpu.load_and_run(vec![
+            0x18,           // CLC (clear carry)
+            0x90, 0x02,     // BCC +2
+            0xa9, 0x01,     // LDA #$01 (skipped)
+            0xa9, 0x42,     // LDA #$42 (executed)
+            0x00
+        ]);
+        assert_eq!(cpu.register_a, 0x42);
+    }
+
+    #[test]
+    fn test_bcc_not_taken() {
+        let mut cpu = CPU::new();
+        cpu.load_and_run(vec![
+            0x38,           // SEC (set carry)
+            0x90, 0x02,     // BCC +2 (not taken)
+            0xa9, 0x42,     // LDA #$42 (executed)
+            0x00
+        ]);
+        assert_eq!(cpu.register_a, 0x42);
+    }
+
+    #[test]
+    fn test_bcs_taken() {
+        let mut cpu = CPU::new();
+        cpu.load_and_run(vec![
+            0x38,           // SEC
+            0xb0, 0x02,     // BCS +2
+            0xa9, 0x01,     // LDA #$01 (skipped)
+            0xa9, 0x42,     // LDA #$42 (executed)
+            0x00
+        ]);
+        assert_eq!(cpu.register_a, 0x42);
+    }
+
+    #[test]
+    fn test_beq_taken() {
+        let mut cpu = CPU::new();
+        cpu.load_and_run(vec![
+            0xa9, 0x00,     // LDA #$00 (sets zero flag)
+            0xf0, 0x02,     // BEQ +2
+            0xa9, 0x01,     // LDA #$01 (skipped)
+            0xa9, 0x42,     // LDA #$42 (executed)
+            0x00
+        ]);
+        assert_eq!(cpu.register_a, 0x42);
+    }
+
+    #[test]
+    fn test_bne_taken() {
+        let mut cpu = CPU::new();
+        cpu.load_and_run(vec![
+            0xa9, 0x01,     // LDA #$01 (clears zero flag)
+            0xd0, 0x02,     // BNE +2
+            0xa9, 0x00,     // LDA #$00 (skipped)
+            0xa9, 0x42,     // LDA #$42 (executed)
+            0x00
+        ]);
+        assert_eq!(cpu.register_a, 0x42);
+    }
+
+    #[test]
+    fn test_bmi_taken() {
+        let mut cpu = CPU::new();
+        cpu.load_and_run(vec![
+            0xa9, 0x80,     // LDA #$80 (sets negative flag)
+            0x30, 0x02,     // BMI +2
+            0xa9, 0x01,     // LDA #$01 (skipped)
+            0xa9, 0x42,     // LDA #$42 (executed)
+            0x00
+        ]);
+        assert_eq!(cpu.register_a, 0x42);
+    }
+
+    #[test]
+    fn test_bpl_taken() {
+        let mut cpu = CPU::new();
+        cpu.load_and_run(vec![
+            0xa9, 0x7f,     // LDA #$7f (clears negative flag)
+            0x10, 0x02,     // BPL +2
+            0xa9, 0x80,     // LDA #$80 (skipped)
+            0xa9, 0x42,     // LDA #$42 (executed)
+            0x00
+        ]);
+        assert_eq!(cpu.register_a, 0x42);
+    }
+
+    #[test]
+    fn test_branch_backward() {
+        let mut cpu = CPU::new();
+        cpu.load_and_run(vec![
+            0xa2, 0x03,     // LDX #$03 (loop counter)
+            0xca,           // DEX
+            0xd0, 0xfd,     // BNE -3 (loop until X=0)
+            0xa9, 0x42,     // LDA #$42
+            0x00
+        ]);
+        assert_eq!(cpu.register_x, 0x00);
+        assert_eq!(cpu.register_a, 0x42);
+    }
+
+    #[test]
+    fn test_branch_page_cross() {
+        let mut cpu = CPU::new();
+        cpu.load_and_run(vec![
+            0xa9, 0x00,     // LDA #$00 (set zero flag)
+            0xf0, 0x7e,     // BEQ +126 (will actually wrap to $0580)
+            0x00
+        ]);
+        assert!(cpu.program_counter > 0x0600);
+    }
 }
