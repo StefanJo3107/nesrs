@@ -119,6 +119,28 @@ impl CPU {
         hi << 8 | lo
     }
 
+    fn add_to_register_a(&mut self, value: u8) {
+        let sum = value as u16 + self.register_a as u16 + if self.status.contains(CpuFlags::CARRY) { 1 } else { 0 } as u16;
+
+        let carry = sum > 0xFF;
+        if carry {
+            self.status.insert(CpuFlags::CARRY);
+        } else {
+            self.status.remove(CpuFlags::CARRY);
+        }
+
+        let result = sum as u8;
+
+        if (value ^ result) & (self.register_a ^ result) & 0b1000_0000 != 0 {
+            self.status.insert(CpuFlags::OVERFLOW);
+        } else {
+            self.status.remove(CpuFlags::OVERFLOW);
+        }
+
+        self.register_a = result;
+        self.update_z_and_n_flags(self.register_a);
+    }
+
     fn get_operand_value(&mut self, mode: AddressingMode) -> u8 {
         let address = self.get_operand_address(mode);
         self.mem_read(address)
@@ -318,6 +340,16 @@ impl CPU {
     fn iny(&mut self, _: AddressingMode) {
         self.register_y = self.register_y.wrapping_add(1);
         self.update_z_and_n_flags(self.register_y);
+    }
+
+    fn adc(&mut self, mode: AddressingMode) {
+        let value = self.get_operand_value(mode);
+        self.add_to_register_a(value);
+    }
+
+    fn sbc(&mut self, mode: AddressingMode) {
+        let value = self.get_operand_value(mode);
+        self.add_to_register_a(value.wrapping_neg().wrapping_sub(1));
     }
 
     fn and(&mut self, mode: AddressingMode) {
@@ -595,11 +627,32 @@ impl CPU {
 
     fn rti(&mut self, _: AddressingMode) {
         self.status = CpuFlags::from_bits(self.stack_pop()).unwrap_or_else(|| panic!("invalid status register"));
+        self.status.remove(CpuFlags::BIT5);
+        self.status.remove(CpuFlags::BREAK);
         self.program_counter = self.stack_pop_u16();
     }
 
-    fn adc(&mut self, mode: AddressingMode) {
-        todo!("")
+    fn bit(&mut self, mode: AddressingMode) {
+        let value = self.get_operand_value(mode);
+        let negative = (value & 0b1000_0000) == 0b1000_0000;
+        if negative {
+            self.status.insert(CpuFlags::NEGATIVE);
+        } else {
+            self.status.remove(CpuFlags::NEGATIVE);
+        }
+
+        let overflow = (value & 0b0100_0000) == 0b0100_0000;
+        if overflow {
+            self.status.insert(CpuFlags::OVERFLOW);
+        } else {
+            self.status.remove(CpuFlags::OVERFLOW);
+        }
+
+        if self.register_a & value == 0 {
+            self.status.insert(CpuFlags::ZERO);
+        } else {
+            self.status.remove(CpuFlags::ZERO);
+        }
     }
 
     /* ----------------------------------------- */
@@ -633,9 +686,6 @@ impl CPU {
 
             if let Some(opcode) = OPCODES.get(&opcode_byte) {
                 match opcode.instruction {
-                    Instruction::ADC => {
-                        self.adc(opcode.addressing_mode);
-                    }
                     Instruction::TAX => {
                         self.tax(opcode.addressing_mode);
                     }
@@ -701,6 +751,12 @@ impl CPU {
                     }
                     Instruction::INY => {
                         self.iny(opcode.addressing_mode);
+                    }
+                    Instruction::ADC => {
+                        self.adc(opcode.addressing_mode);
+                    }
+                    Instruction::SBC => {
+                        self.sbc(opcode.addressing_mode);
                     }
                     Instruction::AND => {
                         self.and(opcode.addressing_mode);
@@ -804,6 +860,10 @@ impl CPU {
                     Instruction::RTI => {
                         self.rti(opcode.addressing_mode);
                     }
+                    Instruction::BIT => {
+                        self.bit(opcode.addressing_mode);
+                    }
+                    Instruction::NOP => {}
                 }
 
                 if old_counter == self.program_counter {

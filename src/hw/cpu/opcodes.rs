@@ -39,6 +39,12 @@ pub enum Instruction {
     // PLP - pull processor status register
     PLP,
 
+    /* ----- Arithmetic operations ----- */
+    // ADC - add with carry (prepare by CLC)
+    ADC,
+    // SBC - subtract with carry (prepare by SEC)
+    SBC,
+
     /* ----- Decrements and increments ----- */
     // DEC - decrement (memory)
     DEC,
@@ -129,14 +135,17 @@ pub enum Instruction {
     // RTS - return from subroutine
     RTS,
 
-    // ADC - add memory to accumulator with carry
-    ADC,
-
     /* ----- Interrupts ----- */
     // BRK - break / software interrupt
     BRK,
     // RTI - return from interrupt
     RTI,
+
+    /* ----- Other ----- */
+    // BIT - bit test (accumulator and memory)
+    BIT,
+    // NOP - no operation
+    NOP,
 }
 
 #[derive(Debug, Clone, Copy)]
@@ -161,16 +170,6 @@ impl OpCode {
 lazy_static::lazy_static! {
     pub static ref OPCODES: HashMap<u8, OpCode> = {
         let mut map = HashMap::new();
-
-        // ADC
-        map.insert(0x69, OpCode::new(Instruction::ADC, 2, 2, AddressingMode::Immediate));
-        map.insert(0x65, OpCode::new(Instruction::ADC, 2, 3, AddressingMode::ZeroPage));
-        map.insert(0x75, OpCode::new(Instruction::ADC, 2, 4, AddressingMode::ZeroPageX));
-        map.insert(0x6D, OpCode::new(Instruction::ADC, 3, 4, AddressingMode::Absolute));
-        map.insert(0x7D, OpCode::new(Instruction::ADC, 3, 4, AddressingMode::AbsoluteX));
-        map.insert(0x79, OpCode::new(Instruction::ADC, 3, 4, AddressingMode::AbsoluteY));
-        map.insert(0x61, OpCode::new(Instruction::ADC, 2, 6, AddressingMode::IndirectX));
-        map.insert(0x71, OpCode::new(Instruction::ADC, 2, 5, AddressingMode::IndirectY));
 
         // LDA variants
         map.insert(0xA9, OpCode::new(Instruction::LDA, 2, 2, AddressingMode::Immediate));
@@ -268,6 +267,26 @@ lazy_static::lazy_static! {
 
         // INY
         map.insert(0xC8, OpCode::new(Instruction::INY, 1, 2, AddressingMode::Implicit));
+
+        // ADC
+        map.insert(0x69, OpCode::new(Instruction::ADC, 2, 2, AddressingMode::Immediate));
+        map.insert(0x65, OpCode::new(Instruction::ADC, 2, 3, AddressingMode::ZeroPage));
+        map.insert(0x75, OpCode::new(Instruction::ADC, 2, 4, AddressingMode::ZeroPageX));
+        map.insert(0x6D, OpCode::new(Instruction::ADC, 3, 4, AddressingMode::Absolute));
+        map.insert(0x7D, OpCode::new(Instruction::ADC, 3, 4, AddressingMode::AbsoluteX));
+        map.insert(0x79, OpCode::new(Instruction::ADC, 3, 4, AddressingMode::AbsoluteY));
+        map.insert(0x61, OpCode::new(Instruction::ADC, 2, 6, AddressingMode::IndirectX));
+        map.insert(0x71, OpCode::new(Instruction::ADC, 2, 5, AddressingMode::IndirectY));
+
+        // SBC
+        map.insert(0xE9, OpCode::new(Instruction::SBC, 2, 2, AddressingMode::Immediate));
+        map.insert(0xE5, OpCode::new(Instruction::SBC, 2, 3, AddressingMode::ZeroPage));
+        map.insert(0xF5, OpCode::new(Instruction::SBC, 2, 4, AddressingMode::ZeroPageX));
+        map.insert(0xED, OpCode::new(Instruction::SBC, 3, 4, AddressingMode::Absolute));
+        map.insert(0xFD, OpCode::new(Instruction::SBC, 3, 4, AddressingMode::AbsoluteX));
+        map.insert(0xF9, OpCode::new(Instruction::SBC, 3, 4, AddressingMode::AbsoluteY));
+        map.insert(0xE1, OpCode::new(Instruction::SBC, 2, 6, AddressingMode::IndirectX));
+        map.insert(0xF1, OpCode::new(Instruction::SBC, 2, 5, AddressingMode::IndirectY));
 
         // AND
         map.insert(0x29, OpCode::new(Instruction::AND, 2, 2, AddressingMode::Immediate));
@@ -415,6 +434,13 @@ lazy_static::lazy_static! {
 
         // RTI
         map.insert(0x40, OpCode::new(Instruction::RTI, 1, 6, AddressingMode::Implicit));
+
+        // BIT
+        map.insert(0x24, OpCode::new(Instruction::BIT, 2, 3, AddressingMode::ZeroPage));
+        map.insert(0x2C, OpCode::new(Instruction::BIT, 3, 4, AddressingMode::Absolute));
+
+        // NOP
+        map.insert(0xEA, OpCode::new(Instruction::NOP, 1, 2, AddressingMode::Implicit));
 
         map
     };
