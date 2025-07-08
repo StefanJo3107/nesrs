@@ -131,8 +131,12 @@ pub enum Instruction {
 
     // ADC - add memory to accumulator with carry
     ADC,
-    // BRK - return from program
+
+    /* ----- Interrupts ----- */
+    // BRK - break / software interrupt
     BRK,
+    // RTI - return from interrupt
+    RTI,
 }
 
 #[derive(Debug, Clone, Copy)]
@@ -167,9 +171,6 @@ lazy_static::lazy_static! {
         map.insert(0x79, OpCode::new(Instruction::ADC, 3, 4, AddressingMode::AbsoluteY));
         map.insert(0x61, OpCode::new(Instruction::ADC, 2, 6, AddressingMode::IndirectX));
         map.insert(0x71, OpCode::new(Instruction::ADC, 2, 5, AddressingMode::IndirectY));
-
-        // BRK
-        map.insert(0x00, OpCode::new(Instruction::BRK, 1, 7, AddressingMode::Implicit));
 
         // LDA variants
         map.insert(0xA9, OpCode::new(Instruction::LDA, 2, 2, AddressingMode::Immediate));
@@ -408,6 +409,12 @@ lazy_static::lazy_static! {
 
         // RTS
         map.insert(0x60, OpCode::new(Instruction::RTS, 1, 6, AddressingMode::Implicit));
+
+        // BRK
+        map.insert(0x00, OpCode::new(Instruction::BRK, 1, 7, AddressingMode::Implicit));
+
+        // RTI
+        map.insert(0x40, OpCode::new(Instruction::RTI, 1, 6, AddressingMode::Implicit));
 
         map
     };

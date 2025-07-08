@@ -593,6 +593,11 @@ impl CPU {
         self.program_counter = self.stack_pop_u16();
     }
 
+    fn rti(&mut self, _: AddressingMode) {
+        self.status = CpuFlags::from_bits(self.stack_pop()).unwrap_or_else(|| panic!("invalid status register"));
+        self.program_counter = self.stack_pop_u16();
+    }
+
     fn adc(&mut self, mode: AddressingMode) {
         todo!("")
     }
@@ -630,9 +635,6 @@ impl CPU {
                 match opcode.instruction {
                     Instruction::ADC => {
                         self.adc(opcode.addressing_mode);
-                    }
-                    Instruction::BRK => {
-                        return;
                     }
                     Instruction::TAX => {
                         self.tax(opcode.addressing_mode);
@@ -795,6 +797,12 @@ impl CPU {
                     }
                     Instruction::RTS => {
                         self.rts(opcode.addressing_mode);
+                    }
+                    Instruction::BRK => {
+                        return;
+                    }
+                    Instruction::RTI => {
+                        self.rti(opcode.addressing_mode);
                     }
                 }
 
