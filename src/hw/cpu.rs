@@ -3,7 +3,9 @@ mod tests;
 
 use std::cmp::PartialEq;
 use bitflags::bitflags;
+use crate::hw::bus::Bus;
 use crate::hw::cpu::opcodes::{Instruction, OPCODES};
+use crate::hw::memory::Memory;
 
 bitflags! {
     // Status Register Flags (bit 7 to bit 0)
@@ -42,7 +44,7 @@ pub struct CPU {
     pub status: CpuFlags,
     pub stack_pointer: u8,
     pub program_counter: u16,
-    memory: [u8; 0xFFFF],
+    bus: Bus,
 }
 
 #[derive(Debug, Clone, Copy, Eq, PartialEq)]
@@ -61,6 +63,24 @@ pub enum AddressingMode {
     Relative,
 }
 
+impl Memory for CPU {
+    fn mem_read(&self, addr: u16) -> u8 {
+        self.bus.mem_read(addr)
+    }
+
+    fn mem_write(&mut self, addr: u16, data: u8) {
+        self.bus.mem_write(addr, data);
+    }
+
+    fn mem_read_u16(&self, addr: u16) -> u16 {
+        self.bus.mem_read_u16(addr)
+    }
+
+    fn mem_write_u16(&mut self, addr: u16, data: u16) {
+        self.bus.mem_write_u16(addr, data);
+    }
+}
+
 impl CPU {
     pub fn new() -> CPU {
         CPU {
@@ -70,29 +90,8 @@ impl CPU {
             status: CpuFlags::empty(),
             stack_pointer: 0,
             program_counter: 0,
-            memory: [0; 0xFFFF],
+            bus: Bus::new(),
         }
-    }
-
-    fn mem_read(&self, addr: u16) -> u8 {
-        self.memory[addr as usize]
-    }
-
-    fn mem_write(&mut self, addr: u16, data: u8) {
-        self.memory[addr as usize] = data;
-    }
-
-    fn mem_read_u16(&self, addr: u16) -> u16 {
-        let lo = self.mem_read(addr) as u16;
-        let hi = self.mem_read(addr + 1) as u16;
-        (hi << 8) | lo
-    }
-
-    fn mem_write_u16(&mut self, addr: u16, data: u16) {
-        let hi = (data >> 8) as u8;
-        let lo = (data & 0xFF) as u8;
-        self.mem_write(addr, lo);
-        self.mem_write(addr + 1, hi);
     }
 
     fn stack_push(&mut self, data: u8) {
@@ -664,8 +663,10 @@ impl CPU {
     }
 
     pub fn load(&mut self, program: Vec<u8>) {
-        self.memory[0x8000..(0x8000 + program.len())].copy_from_slice(&program);
-        self.mem_write_u16(0xFFFC, 0x8000);
+        for i in 0..(program.len() as u16) {
+            self.mem_write(0x0000 + i, program[i as usize]);
+        }
+        self.mem_write_u16(0xFFFC, 0x0000);
     }
 
     fn reset(&mut self) {

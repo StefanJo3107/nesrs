@@ -4,6 +4,7 @@ use crate::hw::cpu::{CpuFlags, CPU};
 mod test {
     use std::ops::BitAnd;
     use crate::hw::cpu::STACK_START;
+    use crate::hw::memory::Memory;
     use super::*;
 
     #[test]
