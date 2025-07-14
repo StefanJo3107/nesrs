@@ -82,7 +82,7 @@ impl Memory for CPU {
 }
 
 impl CPU {
-    pub fn new() -> CPU {
+    pub fn new(bus: Bus) -> CPU {
         CPU {
             register_a: 0,
             register_x: 0,
@@ -90,7 +90,7 @@ impl CPU {
             status: CpuFlags::empty(),
             stack_pointer: 0,
             program_counter: 0,
-            bus: Bus::new(),
+            bus,
         }
     }
 
@@ -194,7 +194,7 @@ impl CPU {
                 let base = self.mem_read(self.program_counter);
 
                 let lo = self.mem_read(base as u16);
-                let hi = self.mem_read((base as u8).wrapping_add(1) as u16);
+                let hi = self.mem_read(base.wrapping_add(1) as u16);
                 let deref_base = (hi as u16) << 8 | (lo as u16);
                 let deref = deref_base.wrapping_add(self.register_y as u16);
                 deref
@@ -656,8 +656,7 @@ impl CPU {
 
     /* ----------------------------------------- */
 
-    pub fn load_and_run(&mut self, program: Vec<u8>) {
-        self.load(program);
+    pub fn load_and_run(&mut self) {
         self.reset();
         self.run();
     }
@@ -676,7 +675,7 @@ impl CPU {
         self.status = CpuFlags::empty();
         self.stack_pointer = STACK_START;
 
-        self.program_counter = self.mem_read_u16(0xFFFC);
+        self.program_counter = 0x8000;
     }
 
     pub fn run(&mut self) {
