@@ -1,7 +1,7 @@
 #[cfg(test)]
-pub mod cartridge_tests {
+mod cartridge_tests {
     use crate::hw::cartridge::{Cartridge, CartridgeError, ScreenMirroring};
-    
+
     fn create_valid_ines_header() -> Vec<u8> {
         vec![
             0x4E, 0x45, 0x53, 0x1A,

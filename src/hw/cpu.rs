@@ -1,10 +1,12 @@
 mod opcodes;
 mod tests;
+mod tracer;
 
 use std::cmp::PartialEq;
 use bitflags::bitflags;
 use crate::hw::bus::Bus;
 use crate::hw::cpu::opcodes::{Instruction, OPCODES};
+use crate::hw::cpu::tracer::trace;
 use crate::hw::memory::Memory;
 
 bitflags! {
@@ -679,7 +681,15 @@ impl CPU {
     }
 
     pub fn run(&mut self) {
+        self.run_with_callback(|cpu| { trace(cpu) });
+    }
+
+    pub fn run_with_callback<F>(&mut self, mut callback: F)
+    where
+        F: FnMut(&mut CPU),
+    {
         loop {
+            callback(self);
             let opcode_byte = self.mem_read(self.program_counter);
             self.program_counter += 1;
             let old_counter = self.program_counter;

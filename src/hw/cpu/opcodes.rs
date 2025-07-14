@@ -1,7 +1,9 @@
 use std::collections::HashMap;
+use strum_macros::{Display, EnumString};
 use crate::hw::cpu::AddressingMode;
 
-#[derive(Debug, Clone, Copy)]
+#[derive(Debug, Clone, Copy, Display, EnumString)]
+#[strum(serialize_all = "UPPERCASE")]
 pub enum Instruction {
     /* ----- Transfer instructions ----- */
     // LDA - load value into accumulator
@@ -71,18 +73,22 @@ pub enum Instruction {
     // ASL - arithmetic shift left (shifts in a zero bit on the right)
     ASL,
     // ASLA - arithmetic shift left accumulator (shifts in a zero bit on the right)
+    #[strum(serialize = "ASL A")]
     ASLA,
     // LSR - logical shift right (shifts in a zero bit on the left)
     LSR,
     // LSRA - logical shift right accumulator (shifts in a zero bit on the left)
+    #[strum(serialize = "LSR A")]
     LSRA,
     // ROL - rotate left (shifts in carry bit on the right)
     ROL,
     // ROLA - rotate left accumulator (shifts in carry bit on the right)
+    #[strum(serialize = "ROL A")]
     ROLA,
     // ROR - rotate right (shifts in zero bit on the left)
     ROR,
     // RORA - rotate right accumulator (shifts in zero bit on the left)
+    #[strum(serialize = "ROR A")]
     RORA,
 
     /* ----- Flag instructions ----- */
