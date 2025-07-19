@@ -2,7 +2,7 @@ use std::collections::HashMap;
 use strum_macros::{Display, EnumString};
 use crate::hw::cpu::AddressingMode;
 
-#[derive(Debug, Clone, Copy, Display, EnumString)]
+#[derive(Debug, Clone, Copy, PartialEq, Display, EnumString)]
 #[strum(serialize_all = "UPPERCASE")]
 pub enum Instruction {
     /* ----- Transfer instructions ----- */
@@ -152,6 +152,54 @@ pub enum Instruction {
     BIT,
     // NOP - no operation
     NOP,
+
+    /* ----- Undocumented ----- */
+    // DOP - No operation (double NOP)
+    #[strum(serialize = "*NOP")]
+    DOP,
+    // TOP - No operation (triple NOP)
+    #[strum(serialize = "*NOP")]
+    TOP,
+    // LAX - Load accumulator and X register with memory
+    #[strum(serialize = "*LAX")]
+    LAX,
+    // LAX - Load accumulator and X register with memory
+    #[strum(serialize = "*SAX")]
+    // AAX - AND X register with accumulator and store result in memory
+    AAX,
+    #[strum(serialize = "*DCP")]
+    // DCP - Equivalent to DEC value then CMP value, except supporting more addressing modes
+    DCP,
+    #[strum(serialize = "*ISB")]
+    // ISC - Equivalent to INC value then SBC value, except supporting more addressing modes
+    ISC,
+    #[strum(serialize = "*SLO")]
+    // SLO - Equivalent to ASL value then ORA value, except supporting more addressing modes
+    SLO,
+    #[strum(serialize = "*RLA")]
+    // RLA - Equivalent to ROL value then AND value, except supporting more addressing modes
+    RLA,
+    #[strum(serialize = "*SRE")]
+    // SRE - Equivalent to LSR value then EOR value, except supporting more addressing modes
+    SRE,
+    #[strum(serialize = "*RRA")]
+    // RRA - Equivalent to ROR value then ADC value, except supporting more addressing modes
+    RRA,
+    #[strum(serialize = "*SBC")]
+    // SBC - subtract with carry (prepare by SEC)
+    SBCU,
+    #[strum(serialize = "*ANC")]
+    // ANC - AND byte with accumulator
+    ANC,
+    #[strum(serialize = "*ARR")]
+    // ARR - AND byte with accumulator, then rotate one bit right in accu-mulator
+    ARR,
+    #[strum(serialize = "*ASR")]
+    // ASR - Equivalent to AND #i then LSR A
+    ASR,
+    #[strum(serialize = "*ATX")]
+    // ATX - AND byte with accumulator, then transfer accumulator to X register
+    ATX,
 }
 
 #[derive(Debug, Clone, Copy)]
@@ -447,6 +495,121 @@ lazy_static::lazy_static! {
 
         // NOP
         map.insert(0xEA, OpCode::new(Instruction::NOP, 1, 2, AddressingMode::Implicit));
+
+        // DOP
+        map.insert(0x3A, OpCode::new(Instruction::DOP, 1, 2, AddressingMode::Implicit));
+        map.insert(0x5A, OpCode::new(Instruction::DOP, 1, 2, AddressingMode::Implicit));
+        map.insert(0x7A, OpCode::new(Instruction::DOP, 1, 2, AddressingMode::Implicit));
+        map.insert(0xFA, OpCode::new(Instruction::DOP, 1, 2, AddressingMode::Implicit));
+        map.insert(0xDA, OpCode::new(Instruction::DOP, 1, 2, AddressingMode::Implicit));
+        map.insert(0x1A, OpCode::new(Instruction::DOP, 1, 2, AddressingMode::Implicit));
+        map.insert(0x04, OpCode::new(Instruction::DOP, 2, 4, AddressingMode::ZeroPage));
+        map.insert(0x14, OpCode::new(Instruction::DOP, 2, 4, AddressingMode::ZeroPageX));
+        map.insert(0x34, OpCode::new(Instruction::DOP, 2, 4, AddressingMode::ZeroPageX));
+        map.insert(0x44, OpCode::new(Instruction::DOP, 2, 3, AddressingMode::ZeroPage));
+        map.insert(0x54, OpCode::new(Instruction::DOP, 2, 4, AddressingMode::ZeroPageX));
+        map.insert(0x64, OpCode::new(Instruction::DOP, 2, 3, AddressingMode::ZeroPage));
+        map.insert(0x74, OpCode::new(Instruction::DOP, 2, 4, AddressingMode::ZeroPageX));
+        map.insert(0x80, OpCode::new(Instruction::DOP, 2, 2, AddressingMode::Immediate));
+        map.insert(0x82, OpCode::new(Instruction::DOP, 2, 2, AddressingMode::Immediate));
+        map.insert(0x89, OpCode::new(Instruction::DOP, 2, 2, AddressingMode::Immediate));
+        map.insert(0xC2, OpCode::new(Instruction::DOP, 2, 2, AddressingMode::Immediate));
+        map.insert(0xD4, OpCode::new(Instruction::DOP, 2, 4, AddressingMode::ZeroPageX));
+        map.insert(0xE2, OpCode::new(Instruction::DOP, 2, 2, AddressingMode::Immediate));
+        map.insert(0xF4, OpCode::new(Instruction::DOP, 2, 4, AddressingMode::ZeroPageX));
+
+        // TOP
+        map.insert(0x0C, OpCode::new(Instruction::TOP, 3, 4, AddressingMode::Absolute));
+        map.insert(0x1C, OpCode::new(Instruction::TOP, 3, 4, AddressingMode::AbsoluteX));
+        map.insert(0x3C, OpCode::new(Instruction::TOP, 3, 4, AddressingMode::AbsoluteX));
+        map.insert(0x5C, OpCode::new(Instruction::TOP, 3, 4, AddressingMode::AbsoluteX));
+        map.insert(0x7C, OpCode::new(Instruction::TOP, 3, 4, AddressingMode::AbsoluteX));
+        map.insert(0xDC, OpCode::new(Instruction::TOP, 3, 4, AddressingMode::AbsoluteX));
+        map.insert(0xFC, OpCode::new(Instruction::TOP, 3, 4, AddressingMode::AbsoluteX));
+
+        // LAX
+        map.insert(0xA7, OpCode::new(Instruction::LAX, 2, 3, AddressingMode::ZeroPage));
+        map.insert(0xB7, OpCode::new(Instruction::LAX, 2, 4, AddressingMode::ZeroPageY));
+        map.insert(0xAF, OpCode::new(Instruction::LAX, 3, 4, AddressingMode::Absolute));
+        map.insert(0xBF, OpCode::new(Instruction::LAX, 3, 4, AddressingMode::AbsoluteY));
+        map.insert(0xA3, OpCode::new(Instruction::LAX, 2, 6, AddressingMode::IndirectX));
+        map.insert(0xB3, OpCode::new(Instruction::LAX, 2, 5, AddressingMode::IndirectY));
+
+        // AAX
+        map.insert(0x87, OpCode::new(Instruction::AAX, 2, 3, AddressingMode::ZeroPage));
+        map.insert(0x97, OpCode::new(Instruction::AAX, 2, 4, AddressingMode::ZeroPageY));
+        map.insert(0x8F, OpCode::new(Instruction::AAX, 3, 4, AddressingMode::Absolute));
+        map.insert(0x83, OpCode::new(Instruction::AAX, 2, 6, AddressingMode::IndirectX));
+
+        // DCP
+        map.insert(0xC7, OpCode::new(Instruction::DCP, 2, 5, AddressingMode::ZeroPage));
+        map.insert(0xD7, OpCode::new(Instruction::DCP, 2, 6, AddressingMode::ZeroPageX));
+        map.insert(0xCF, OpCode::new(Instruction::DCP, 3, 6, AddressingMode::Absolute));
+        map.insert(0xDF, OpCode::new(Instruction::DCP, 3, 7, AddressingMode::AbsoluteX));
+        map.insert(0xDB, OpCode::new(Instruction::DCP, 3, 7, AddressingMode::AbsoluteY));
+        map.insert(0xC3, OpCode::new(Instruction::DCP, 2, 8, AddressingMode::IndirectX));
+        map.insert(0xD3, OpCode::new(Instruction::DCP, 2, 8, AddressingMode::IndirectY));
+
+        // ISC
+        map.insert(0xE7, OpCode::new(Instruction::ISC, 2, 5, AddressingMode::ZeroPage));
+        map.insert(0xF7, OpCode::new(Instruction::ISC, 2, 6, AddressingMode::ZeroPageX));
+        map.insert(0xEF, OpCode::new(Instruction::ISC, 3, 6, AddressingMode::Absolute));
+        map.insert(0xFF, OpCode::new(Instruction::ISC, 3, 7, AddressingMode::AbsoluteX));
+        map.insert(0xFB, OpCode::new(Instruction::ISC, 3, 7, AddressingMode::AbsoluteY));
+        map.insert(0xE3, OpCode::new(Instruction::ISC, 2, 8, AddressingMode::IndirectX));
+        map.insert(0xF3, OpCode::new(Instruction::ISC, 2, 8, AddressingMode::IndirectY));
+
+        // SLO
+        map.insert(0x07, OpCode::new(Instruction::SLO, 2, 5, AddressingMode::ZeroPage));
+        map.insert(0x17, OpCode::new(Instruction::SLO, 2, 6, AddressingMode::ZeroPageX));
+        map.insert(0x0F, OpCode::new(Instruction::SLO, 3, 6, AddressingMode::Absolute));
+        map.insert(0x1F, OpCode::new(Instruction::SLO, 3, 7, AddressingMode::AbsoluteX));
+        map.insert(0x1B, OpCode::new(Instruction::SLO, 3, 7, AddressingMode::AbsoluteY));
+        map.insert(0x03, OpCode::new(Instruction::SLO, 2, 8, AddressingMode::IndirectX));
+        map.insert(0x13, OpCode::new(Instruction::SLO, 2, 8, AddressingMode::IndirectY));
+
+        // RLA
+        map.insert(0x27, OpCode::new(Instruction::RLA, 2, 5, AddressingMode::ZeroPage));
+        map.insert(0x37, OpCode::new(Instruction::RLA, 2, 6, AddressingMode::ZeroPageX));
+        map.insert(0x2F, OpCode::new(Instruction::RLA, 3, 6, AddressingMode::Absolute));
+        map.insert(0x3F, OpCode::new(Instruction::RLA, 3, 7, AddressingMode::AbsoluteX));
+        map.insert(0x3B, OpCode::new(Instruction::RLA, 3, 7, AddressingMode::AbsoluteY));
+        map.insert(0x23, OpCode::new(Instruction::RLA, 2, 8, AddressingMode::IndirectX));
+        map.insert(0x33, OpCode::new(Instruction::RLA, 2, 8, AddressingMode::IndirectY));
+
+        // SRE
+        map.insert(0x47, OpCode::new(Instruction::SRE, 2, 5, AddressingMode::ZeroPage));
+        map.insert(0x57, OpCode::new(Instruction::SRE, 2, 6, AddressingMode::ZeroPageX));
+        map.insert(0x4F, OpCode::new(Instruction::SRE, 3, 6, AddressingMode::Absolute));
+        map.insert(0x5F, OpCode::new(Instruction::SRE, 3, 7, AddressingMode::AbsoluteX));
+        map.insert(0x5B, OpCode::new(Instruction::SRE, 3, 7, AddressingMode::AbsoluteY));
+        map.insert(0x43, OpCode::new(Instruction::SRE, 2, 8, AddressingMode::IndirectX));
+        map.insert(0x53, OpCode::new(Instruction::SRE, 2, 8, AddressingMode::IndirectY));
+
+        // RRA
+        map.insert(0x67, OpCode::new(Instruction::RRA, 2, 5, AddressingMode::ZeroPage));
+        map.insert(0x77, OpCode::new(Instruction::RRA, 2, 6, AddressingMode::ZeroPageX));
+        map.insert(0x6F, OpCode::new(Instruction::RRA, 3, 6, AddressingMode::Absolute));
+        map.insert(0x7F, OpCode::new(Instruction::RRA, 3, 7, AddressingMode::AbsoluteX));
+        map.insert(0x7B, OpCode::new(Instruction::RRA, 3, 7, AddressingMode::AbsoluteY));
+        map.insert(0x63, OpCode::new(Instruction::RRA, 2, 8, AddressingMode::IndirectX));
+        map.insert(0x73, OpCode::new(Instruction::RRA, 2, 8, AddressingMode::IndirectY));
+
+        // *SBC
+        map.insert(0xEB, OpCode::new(Instruction::SBCU, 2, 2, AddressingMode::Immediate));
+
+        // ANC
+        map.insert(0x0B, OpCode::new(Instruction::ANC, 2, 2, AddressingMode::Immediate));
+        map.insert(0x2B, OpCode::new(Instruction::ANC, 2, 2, AddressingMode::Immediate));
+
+        // ARR
+        map.insert(0x6B, OpCode::new(Instruction::ARR, 2, 2, AddressingMode::Immediate));
+
+        // ASR
+        map.insert(0x4B, OpCode::new(Instruction::ASR, 2, 2, AddressingMode::Immediate));
+
+        // ATX
+        map.insert(0xAB, OpCode::new(Instruction::ATX, 2, 2, AddressingMode::Immediate));
 
         map
     };

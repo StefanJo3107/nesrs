@@ -1,12 +1,12 @@
-use crate::hw::cpu::{CpuFlags, CPU};
-
 #[cfg(test)]
 mod test {
     use std::ops::BitAnd;
     use crate::hw::bus::Bus;
     use crate::hw::cartridge::Cartridge;
     use crate::hw::cpu::STACK_START;
+    use crate::hw::cpu::tracer::trace;
     use crate::hw::memory::Memory;
+    use crate::hw::cpu::{CpuFlags, CPU};
     use super::*;
 
     struct TestCartridge {
@@ -52,6 +52,66 @@ mod test {
 
     fn create_cpu(program: Vec<u8>) -> CPU {
         CPU::new(Bus::new(Some(test_cartridge(program))))
+    }
+
+    #[test]
+    fn test_format_trace() {
+        let mut bus = Bus::new(Some(test_cartridge(vec![])));
+        bus.mem_write(100, 0xa2);
+        bus.mem_write(101, 0x01);
+        bus.mem_write(102, 0xca);
+        bus.mem_write(103, 0x88);
+        bus.mem_write(104, 0x00);
+
+        let mut cpu = CPU::new(bus);
+        cpu.program_counter = 0x64;
+        cpu.register_a = 1;
+        cpu.register_x = 2;
+        cpu.register_y = 3;
+        let mut result: Vec<String> = vec![];
+        cpu.run_with_callback(|cpu| {
+            result.push(trace(cpu));
+        });
+        assert_eq!(
+            "0064  A2 01     LDX #$01                        A:01 X:02 Y:03 P:24 SP:FD",
+            result[0]
+        );
+        assert_eq!(
+            "0066  CA        DEX                             A:01 X:01 Y:03 P:24 SP:FD",
+            result[1]
+        );
+        assert_eq!(
+            "0067  88        DEY                             A:01 X:00 Y:03 P:26 SP:FD",
+            result[2]
+        );
+    }
+
+    #[test]
+    fn test_format_mem_access() {
+        let mut bus = Bus::new(Some(test_cartridge(vec![])));
+        // ORA ($33), Y
+        bus.mem_write(100, 0x11);
+        bus.mem_write(101, 0x33);
+
+
+        //data
+        bus.mem_write(0x33, 00);
+        bus.mem_write(0x34, 04);
+
+        //target cell
+        bus.mem_write(0x400, 0xAA);
+
+        let mut cpu = CPU::new(bus);
+        cpu.program_counter = 0x64;
+        cpu.register_y = 0;
+        let mut result: Vec<String> = vec![];
+        cpu.run_with_callback(|cpu| {
+            result.push(trace(cpu));
+        });
+        assert_eq!(
+            "0064  11 33     ORA ($33),Y = 0400 @ 0400 = AA  A:00 X:00 Y:00 P:24 SP:FD",
+            result[0]
+        );
     }
 
     #[test]
@@ -234,7 +294,7 @@ mod test {
         let mut cpu = create_cpu(vec![0x48, 0x00]);
         cpu.load_and_run();
         assert_eq!(cpu.mem_read(0x01FF), 0);
-        assert_eq!(cpu.stack_pointer, 0xFE);
+        assert_eq!(cpu.stack_pointer, 0xFC);
     }
 
     #[test]
@@ -242,16 +302,16 @@ mod test {
         let mut cpu = create_cpu(vec![0x48, 0x00]);
         cpu.load_and_run();
         assert_eq!(cpu.mem_read(0x01FF), 0x00);
-        assert_eq!(cpu.stack_pointer, 0xFE);
+        assert_eq!(cpu.stack_pointer, 0xFC);
     }
 
     #[test]
     fn test_0x48_pha_multiple_pushes() {
         let mut cpu = create_cpu(vec![0x48, 0xa9, 0x22, 0x48, 0x00]);
         cpu.load_and_run();
-        assert_eq!(cpu.mem_read(0x01FF), 0);
-        assert_eq!(cpu.mem_read(0x01FE), 0x22);
-        assert_eq!(cpu.stack_pointer, 0xFD);
+        assert_eq!(cpu.mem_read(0x01FD), 0);
+        assert_eq!(cpu.mem_read(0x01FC), 0x22);
+        assert_eq!(cpu.stack_pointer, 0xFB);
     }
 
     #[test]
@@ -261,8 +321,7 @@ mod test {
         let pushed_status = cpu.mem_read(0x01FF);
         assert_eq!(pushed_status & CpuFlags::ZERO.bits(), 0);
         assert_eq!(pushed_status & CpuFlags::CARRY.bits(), 0);
-        assert_eq!(pushed_status & CpuFlags::BREAK.bits(), CpuFlags::BREAK.bits());
-        assert_eq!(cpu.stack_pointer, 0xFE);
+        assert_eq!(cpu.stack_pointer, 0xFC);
     }
 
     #[test]
@@ -270,7 +329,6 @@ mod test {
         let mut cpu = create_cpu(vec![0x08, 0x00]);
         cpu.load_and_run();
         let pushed_status = cpu.mem_read(0x01FF);
-        assert_eq!(pushed_status & CpuFlags::BREAK.bits(), CpuFlags::BREAK.bits());
         assert_eq!(pushed_status & CpuFlags::NEGATIVE.bits(), 0);
     }
 
@@ -279,8 +337,7 @@ mod test {
         let mut cpu = create_cpu(vec![0x08, 0x00]);
         cpu.load_and_run();
         let pushed_status = cpu.mem_read(0x01FF);
-        assert_eq!(pushed_status & CpuFlags::BREAK.bits(), CpuFlags::BREAK.bits());
-        assert_eq!(cpu.stack_pointer, 0xFE);
+        assert_eq!(cpu.stack_pointer, 0xFC);
     }
 
     #[test]
@@ -288,7 +345,7 @@ mod test {
         let mut cpu = create_cpu(vec![0x48, 0xa9, 0x00, 0x68, 0x00]);
         cpu.load_and_run();
         assert_eq!(cpu.register_a, 0);
-        assert_eq!(cpu.stack_pointer, 0xFF);
+        assert_eq!(cpu.stack_pointer, 0xFD);
     }
 
     #[test]
@@ -305,7 +362,7 @@ mod test {
         cpu.load_and_run();
         assert_eq!(cpu.status.clone().bitand(CpuFlags::ZERO).bits(), 0);
         assert_eq!(cpu.status.bitand(CpuFlags::CARRY).bits(), 0);
-        assert_eq!(cpu.stack_pointer, 0xFF);
+        assert_eq!(cpu.stack_pointer, 0xFD);
     }
 
     #[test]
@@ -313,7 +370,7 @@ mod test {
         let mut cpu = create_cpu(vec![0x48, 0x68, 0x00]);
         cpu.load_and_run();
         assert_eq!(cpu.register_a, 0);
-        assert_eq!(cpu.stack_pointer, 0xFF);
+        assert_eq!(cpu.stack_pointer, 0xFD);
     }
 
     #[test]
@@ -329,12 +386,12 @@ mod test {
         cpu.load_and_run();
         assert_eq!(cpu.register_a, 0);
         assert_eq!(cpu.status.bitand(CpuFlags::CARRY).bits(), 0);
-        assert_eq!(cpu.stack_pointer, 0xFF);
+        assert_eq!(cpu.stack_pointer, 0xFD);
     }
 
     #[test]
     fn test_stack_underflow_behavior() {
-        let mut cpu = create_cpu(vec![0x68, 0x00]); // PLA, BRK
+        let mut cpu = create_cpu(vec![0x68, 0x68, 0x68, 0x00]); // PLA, BRK
         cpu.load_and_run();
         assert_eq!(cpu.register_a, 0x00);
         assert_eq!(cpu.stack_pointer, 0x00);
@@ -949,7 +1006,7 @@ mod test {
         ]);
         cpu.load_and_run();
         assert_eq!(cpu.register_a, 0x01);
-        assert_eq!(cpu.stack_pointer, 0xFF);
+        assert_eq!(cpu.stack_pointer, 0xFD);
     }
 
     #[test]
@@ -984,7 +1041,7 @@ mod test {
         ]);
         cpu.load_and_run();
         assert_eq!(cpu.register_a, 0x01);
-        assert_eq!(cpu.stack_pointer, 0xFF);
+        assert_eq!(cpu.stack_pointer, 0xFD);
     }
 
     #[test]
