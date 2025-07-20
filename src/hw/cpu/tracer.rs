@@ -2,7 +2,7 @@ use crate::hw::cpu::{AddressingMode, CPU};
 use crate::hw::cpu::opcodes::{Instruction, OPCODES};
 use crate::hw::memory::Memory;
 
-pub fn trace(cpu: &CPU) -> String {
+pub fn trace(cpu: &mut CPU) -> String {
     let mut trace = String::new();
     trace += &format!("{:04X}  ", cpu.program_counter);
     let opcode_byte = cpu.mem_read(cpu.program_counter);

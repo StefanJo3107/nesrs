@@ -2,7 +2,7 @@ mod tests;
 
 use thiserror::Error;
 
-#[derive(Debug, PartialEq)]
+#[derive(Debug, PartialEq, Clone)]
 pub enum ScreenMirroring {
     Horizontal,
     Vertical,
@@ -22,7 +22,7 @@ pub enum CartridgeError {
     IllegalScreenMirroring,
 }
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct Cartridge {
     pub prg_rom: Vec<u8>,
     pub chr_rom: Vec<u8>,

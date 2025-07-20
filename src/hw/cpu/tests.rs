@@ -7,7 +7,6 @@ mod test {
     use crate::hw::cpu::tracer::trace;
     use crate::hw::memory::Memory;
     use crate::hw::cpu::{CpuFlags, CPU};
-    use super::*;
 
     struct TestCartridge {
         header: Vec<u8>,
@@ -336,7 +335,6 @@ mod test {
     fn test_0x08_php_with_empty_status() {
         let mut cpu = create_cpu(vec![0x08, 0x00]);
         cpu.load_and_run();
-        let pushed_status = cpu.mem_read(0x01FF);
         assert_eq!(cpu.stack_pointer, 0xFC);
     }
 

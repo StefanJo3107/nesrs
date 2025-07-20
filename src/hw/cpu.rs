@@ -6,7 +6,6 @@ use std::cmp::PartialEq;
 use bitflags::bitflags;
 use crate::hw::bus::Bus;
 use crate::hw::cpu::opcodes::{Instruction, OPCODES};
-use crate::hw::cpu::opcodes::Instruction::PHA;
 use crate::hw::cpu::tracer::trace;
 use crate::hw::memory::Memory;
 
@@ -67,7 +66,7 @@ pub enum AddressingMode {
 }
 
 impl Memory for CPU {
-    fn mem_read(&self, addr: u16) -> u8 {
+    fn mem_read(&mut self, addr: u16) -> u8 {
         self.bus.mem_read(addr)
     }
 
@@ -75,7 +74,7 @@ impl Memory for CPU {
         self.bus.mem_write(addr, data);
     }
 
-    fn mem_read_u16(&self, addr: u16) -> u16 {
+    fn mem_read_u16(&mut self, addr: u16) -> u16 {
         self.bus.mem_read_u16(addr)
     }
 
@@ -148,7 +147,7 @@ impl CPU {
         self.mem_read(address)
     }
 
-    fn get_operand_address(&self, mode: AddressingMode) -> u16 {
+    fn get_operand_address(&mut self, mode: AddressingMode) -> u16 {
         match mode {
             AddressingMode::Immediate => self.program_counter,
 
