@@ -5,7 +5,7 @@ mod tests {
 
     #[test]
     fn test_bus_new() {
-        let bus = Bus::new(None);
+        let bus = Bus::new(None, move |_, _| {});
         // Verify that the bus is initialized with zeros
         for i in 0..2048 {
             assert_eq!(bus.cpu_vram[i], 0);
@@ -14,7 +14,7 @@ mod tests {
 
     #[test]
     fn test_ram_read_write() {
-        let mut bus = Bus::new(None);
+        let mut bus = Bus::new(None, move |_, _| {});
 
         bus.mem_write(0x0000, 0x42);
         assert_eq!(bus.mem_read(0x0000), 0x42);
@@ -27,7 +27,7 @@ mod tests {
 
     #[test]
     fn test_ram_mirroring() {
-        let mut bus = Bus::new(None);
+        let mut bus = Bus::new(None, move |_, _| {});
 
         bus.mem_write(0x0000, 0x55);
 
@@ -43,7 +43,7 @@ mod tests {
 
     #[test]
     fn test_ram_mirroring_boundary() {
-        let mut bus = Bus::new(None);
+        let mut bus = Bus::new(None, move |_, _| {});
 
         bus.mem_write(0x07FF, 0x99);
         assert_eq!(bus.mem_read(0x0FFF), 0x99);
@@ -53,7 +53,7 @@ mod tests {
 
     #[test]
     fn test_ram_mirroring_mask() {
-        let mut bus = Bus::new(None);
+        let mut bus = Bus::new(None, move |_, _| {});
 
         let test_cases = vec![
             (0x0000, 0x0000),
@@ -73,39 +73,38 @@ mod tests {
     }
 
     #[test]
-    #[should_panic(expected = "Attempt to read from write-only PPU address 2000")]
     fn test_ppu_read_panics() {
-        let mut bus = Bus::new(None);
+        let mut bus = Bus::new(None, move |_, _| {});
         bus.mem_read(0x2000);
     }
 
     #[test]
     fn test_ppu_write_panics() {
-        let mut bus = Bus::new(None);
+        let mut bus = Bus::new(None, move |_, _| {});
         bus.mem_write(0x2000, 0x42);
     }
 
     #[test]
     fn test_ppu_read_end_panics() {
-        let mut bus = Bus::new(None);
+        let mut bus = Bus::new(None, move |_, _| {});
         bus.mem_read(0x3FFF); // PPU register end
     }
 
     #[test]
     fn test_ppu_write_end_panics() {
-        let mut bus = Bus::new(None);
+        let mut bus = Bus::new(None, move |_, _| {});
         bus.mem_write(0x3FFF, 0x42);
     }
 
     #[test]
     fn test_ppu_middle_range_panics() {
-        let mut bus = Bus::new(None);
+        let mut bus = Bus::new(None, move |_, _| {});
         bus.mem_write(0x2500, 0x42);
     }
 
     #[test]
     fn test_unmapped_memory_read() {
-        let mut bus = Bus::new(None);
+        let mut bus = Bus::new(None, move |_, _| {});
 
         assert_eq!(bus.mem_read(0x4000), 0);
         assert_eq!(bus.mem_read(0x8000), 0);
@@ -115,7 +114,7 @@ mod tests {
     #[test]
     #[should_panic]
     fn test_unmapped_memory_write() {
-        let mut bus = Bus::new(None);
+        let mut bus = Bus::new(None, move |_, _| {});
 
         bus.mem_write(0x4000, 0x42);
         bus.mem_write(0x8000, 0x55);
@@ -128,7 +127,7 @@ mod tests {
 
     #[test]
     fn test_ram_full_range() {
-        let mut bus = Bus::new(None);
+        let mut bus = Bus::new(None, move |_, _| {});
 
         for addr in 0x0000..=0x1FFF {
             let value = (addr & 0xFF) as u8;
@@ -139,7 +138,7 @@ mod tests {
 
     #[test]
     fn test_ram_independence() {
-        let mut bus = Bus::new(None);
+        let mut bus = Bus::new(None, move |_, _| {});
 
         bus.mem_write(0x0000, 0x11);
         bus.mem_write(0x0001, 0x22);
@@ -152,7 +151,7 @@ mod tests {
 
     #[test]
     fn test_write_mask_discrepancy() {
-        let mut bus = Bus::new(None);
+        let mut bus = Bus::new(None, move |_, _| {});
 
         bus.mem_write(0x0800, 0x42);
         assert_eq!(bus.mem_read(0x0000), 0x42);

@@ -49,13 +49,13 @@ mod test {
         Cartridge::new(test_rom).unwrap()
     }
 
-    fn create_cpu(program: Vec<u8>) -> CPU {
-        CPU::new(Bus::new(Some(test_cartridge(program))))
+    fn create_cpu<'a>(program: Vec<u8>) -> CPU<'a> {
+        CPU::new(Bus::new(Some(test_cartridge(program)), move |_, _| {}))
     }
 
     #[test]
     fn test_format_trace() {
-        let mut bus = Bus::new(Some(test_cartridge(vec![])));
+        let mut bus = Bus::new(Some(test_cartridge(vec![])), move |_, _| {});
         bus.mem_write(100, 0xa2);
         bus.mem_write(101, 0x01);
         bus.mem_write(102, 0xca);
@@ -87,7 +87,7 @@ mod test {
 
     #[test]
     fn test_format_mem_access() {
-        let mut bus = Bus::new(Some(test_cartridge(vec![])));
+        let mut bus = Bus::new(Some(test_cartridge(vec![])), move |_, _| {});
         // ORA ($33), Y
         bus.mem_write(100, 0x11);
         bus.mem_write(101, 0x33);
@@ -116,70 +116,90 @@ mod test {
     #[test]
     fn test_0xa9_lda_zero_flag() {
         let mut cpu = create_cpu(vec![0xa9, 0x00, 0x00]);
-        cpu.load_and_run();
+        cpu.reset();
+        cpu.program_counter = 0x8000;
+        cpu.run();
         assert_eq!(cpu.status.bitand(CpuFlags::ZERO).bits(), 0b10);
     }
 
     #[test]
     fn test_0xa2_ldx_zero_flag() {
         let mut cpu = create_cpu(vec![0xa2, 0x00, 0x00]);
-        cpu.load_and_run();
+        cpu.reset();
+        cpu.program_counter = 0x8000;
+        cpu.run();
         assert_eq!(cpu.status.bitand(CpuFlags::ZERO).bits(), 0b10);
     }
 
     #[test]
     fn test_0xa2_ldy_zero_flag() {
         let mut cpu = create_cpu(vec![0xa0, 0x00, 0x00]);
-        cpu.load_and_run();
+        cpu.reset();
+        cpu.program_counter = 0x8000;
+        cpu.run();
         assert_eq!(cpu.status.bitand(CpuFlags::ZERO).bits(), 0b10);
     }
 
     #[test]
     fn test_0xaa_tax_move_a_to_x() {
         let mut cpu = create_cpu(vec![0xaa, 0x00]);
-        cpu.load_and_run();
+        cpu.reset();
+        cpu.program_counter = 0x8000;
+        cpu.run();
         assert_eq!(cpu.register_x, 0)
     }
 
     #[test]
     fn test_0xa8_tay_move_a_to_y() {
         let mut cpu = create_cpu(vec![0xa8, 0x00]);
-        cpu.load_and_run();
+        cpu.reset();
+        cpu.program_counter = 0x8000;
+        cpu.run();
         assert_eq!(cpu.register_y, 0)
     }
 
     #[test]
     fn test_0xba_tsx_move_sp_to_x() {
         let mut cpu = create_cpu(vec![0xba, 0x00]);
-        cpu.load_and_run();
+        cpu.reset();
+        cpu.program_counter = 0x8000;
+        cpu.run();
         assert_eq!(cpu.register_x, STACK_START)
     }
 
     #[test]
     fn test_0x8a_txa_move_x_to_a() {
         let mut cpu = create_cpu(vec![0x8a, 0x00]);
-        cpu.load_and_run();
+        cpu.reset();
+        cpu.program_counter = 0x8000;
+        cpu.run();
         assert_eq!(cpu.register_a, 0)
     }
 
     #[test]
     fn test_0x9a_txs_move_x_to_sp() {
         let mut cpu = create_cpu(vec![0x9a, 0x00]);
-        cpu.load_and_run();
+        cpu.reset();
+        cpu.program_counter = 0x8000;
+        cpu.run();
         assert_eq!(cpu.stack_pointer, 0)
     }
 
     #[test]
     fn test_0x98_tya_move_y_to_a() {
         let mut cpu = create_cpu(vec![0x98, 0x00]);
-        cpu.load_and_run();
+        cpu.reset();
+        cpu.program_counter = 0x8000;
+        cpu.run();
         assert_eq!(cpu.register_a, 0)
     }
 
     #[test]
     fn test_0xa9_lda_immediate_load_data() {
         let mut cpu = create_cpu(vec![0xa9, 0x05, 0x00]);
-        cpu.load_and_run();
+        cpu.reset();
+        cpu.program_counter = 0x8000;
+        cpu.run();
         assert_eq!(cpu.register_a, 0x05);
         assert_eq!(cpu.status.bits() & CpuFlags::ZERO.bits(), 0b00);
         assert_eq!(cpu.status.bits() & CpuFlags::NEGATIVE.bits(), 0);
@@ -188,7 +208,9 @@ mod test {
     #[test]
     fn test_inx_overflow() {
         let mut cpu = create_cpu(vec![0xe8, 0xe8, 0x00]);
-        cpu.load_and_run();
+        cpu.reset();
+        cpu.program_counter = 0x8000;
+        cpu.run();
         assert_eq!(cpu.register_x, 2)
     }
 
@@ -198,7 +220,9 @@ mod test {
                                       0xca,       // DEX
                                       0xca,       // DEX
                                       0x00]);
-        cpu.load_and_run();
+        cpu.reset();
+        cpu.program_counter = 0x8000;
+        cpu.run();
         assert_eq!(cpu.register_x, 0);
     }
 
@@ -207,7 +231,9 @@ mod test {
         let mut cpu = create_cpu(vec![0xa2, 0x00,  // LDX #$00
                                       0xca,       // DEX (should wrap to 0xff)
                                       0x00]);
-        cpu.load_and_run();
+        cpu.reset();
+        cpu.program_counter = 0x8000;
+        cpu.run();
         assert_eq!(cpu.register_x, 0xff);
     }
 
@@ -217,7 +243,9 @@ mod test {
                                       0x88,       // DEY
                                       0x88,       // DEY
                                       0x00]);
-        cpu.load_and_run();
+        cpu.reset();
+        cpu.program_counter = 0x8000;
+        cpu.run();
         assert_eq!(cpu.register_y, 0);
     }
 
@@ -226,7 +254,9 @@ mod test {
         let mut cpu = create_cpu(vec![0xa0, 0x00,  // LDY #$00
                                       0x88,       // DEY (should wrap to 0xff)
                                       0x00]);
-        cpu.load_and_run();
+        cpu.reset();
+        cpu.program_counter = 0x8000;
+        cpu.run();
         assert_eq!(cpu.register_y, 0xff);
     }
 
@@ -237,7 +267,9 @@ mod test {
                                       0xe6, 0x10,  // INC $10
                                       0xe6, 0x10,  // INC $10
                                       0x00]);
-        cpu.load_and_run();
+        cpu.reset();
+        cpu.program_counter = 0x8000;
+        cpu.run();
         assert_eq!(cpu.mem_read(0x10), 0x00);
     }
 
@@ -247,7 +279,9 @@ mod test {
                                       0xc8,       // INY
                                       0xc8,       // INY
                                       0x00]);
-        cpu.load_and_run();
+        cpu.reset();
+        cpu.program_counter = 0x8000;
+        cpu.run();
         assert_eq!(cpu.register_y, 0x00);
     }
 
@@ -258,7 +292,9 @@ mod test {
                                       0xc6, 0x10,  // DEC $10
                                       0xc6, 0x10,  // DEC $10
                                       0x00]);
-        cpu.load_and_run();
+        cpu.reset();
+        cpu.program_counter = 0x8000;
+        cpu.run();
         assert_eq!(cpu.mem_read(0x10), 0x00);
     }
 
@@ -268,14 +304,18 @@ mod test {
                                       0x85, 0x10,  // STA $10
                                       0xc6, 0x10,  // DEC $10 (should wrap to 0xff)
                                       0x00]);
-        cpu.load_and_run();
+        cpu.reset();
+        cpu.program_counter = 0x8000;
+        cpu.run();
         assert_eq!(cpu.mem_read(0x10), 0xff);
     }
 
     #[test]
     fn test_5_ops_working_together() {
         let mut cpu = create_cpu(vec![0xa9, 0xc0, 0xaa, 0xe8, 0x00]);
-        cpu.load_and_run();
+        cpu.reset();
+        cpu.program_counter = 0x8000;
+        cpu.run();
         assert_eq!(cpu.register_x, 0xc1)
     }
 
@@ -283,7 +323,9 @@ mod test {
     fn test_lda_from_memory() {
         let mut cpu = create_cpu(vec![0xa5, 0x10, 0x00]);
         cpu.mem_write(0x10, 0x55);
-        cpu.load_and_run();
+        cpu.reset();
+        cpu.program_counter = 0x8000;
+        cpu.run();
 
         assert_eq!(cpu.register_a, 0x55);
     }
@@ -291,7 +333,9 @@ mod test {
     #[test]
     fn test_0x48_pha_pushes_accumulator_to_stack() {
         let mut cpu = create_cpu(vec![0x48, 0x00]);
-        cpu.load_and_run();
+        cpu.reset();
+        cpu.program_counter = 0x8000;
+        cpu.run();
         assert_eq!(cpu.mem_read(0x01FF), 0);
         assert_eq!(cpu.stack_pointer, 0xFC);
     }
@@ -299,7 +343,9 @@ mod test {
     #[test]
     fn test_0x48_pha_with_zero_accumulator() {
         let mut cpu = create_cpu(vec![0x48, 0x00]);
-        cpu.load_and_run();
+        cpu.reset();
+        cpu.program_counter = 0x8000;
+        cpu.run();
         assert_eq!(cpu.mem_read(0x01FF), 0x00);
         assert_eq!(cpu.stack_pointer, 0xFC);
     }
@@ -307,7 +353,9 @@ mod test {
     #[test]
     fn test_0x48_pha_multiple_pushes() {
         let mut cpu = create_cpu(vec![0x48, 0xa9, 0x22, 0x48, 0x00]);
-        cpu.load_and_run();
+        cpu.reset();
+        cpu.program_counter = 0x8000;
+        cpu.run();
         assert_eq!(cpu.mem_read(0x01FD), 0);
         assert_eq!(cpu.mem_read(0x01FC), 0x22);
         assert_eq!(cpu.stack_pointer, 0xFB);
@@ -316,7 +364,9 @@ mod test {
     #[test]
     fn test_0x08_php_pushes_status_to_stack() {
         let mut cpu = create_cpu(vec![0x08, 0x00]);
-        cpu.load_and_run();
+        cpu.reset();
+        cpu.program_counter = 0x8000;
+        cpu.run();
         let pushed_status = cpu.mem_read(0x01FF);
         assert_eq!(pushed_status & CpuFlags::ZERO.bits(), 0);
         assert_eq!(pushed_status & CpuFlags::CARRY.bits(), 0);
@@ -326,7 +376,9 @@ mod test {
     #[test]
     fn test_0x08_php_sets_break_flag() {
         let mut cpu = create_cpu(vec![0x08, 0x00]);
-        cpu.load_and_run();
+        cpu.reset();
+        cpu.program_counter = 0x8000;
+        cpu.run();
         let pushed_status = cpu.mem_read(0x01FF);
         assert_eq!(pushed_status & CpuFlags::NEGATIVE.bits(), 0);
     }
@@ -334,14 +386,18 @@ mod test {
     #[test]
     fn test_0x08_php_with_empty_status() {
         let mut cpu = create_cpu(vec![0x08, 0x00]);
-        cpu.load_and_run();
+        cpu.reset();
+        cpu.program_counter = 0x8000;
+        cpu.run();
         assert_eq!(cpu.stack_pointer, 0xFC);
     }
 
     #[test]
     fn test_0x68_pla_pulls_from_stack_to_accumulator() {
         let mut cpu = create_cpu(vec![0x48, 0xa9, 0x00, 0x68, 0x00]);
-        cpu.load_and_run();
+        cpu.reset();
+        cpu.program_counter = 0x8000;
+        cpu.run();
         assert_eq!(cpu.register_a, 0);
         assert_eq!(cpu.stack_pointer, 0xFD);
     }
@@ -349,7 +405,9 @@ mod test {
     #[test]
     fn test_0x68_pla_sets_zero_flag() {
         let mut cpu = create_cpu(vec![0x48, 0xa9, 0x42, 0x68, 0x00]);
-        cpu.load_and_run();
+        cpu.reset();
+        cpu.program_counter = 0x8000;
+        cpu.run();
         assert_eq!(cpu.register_a, 0x00);
         assert_eq!(cpu.status.bitand(CpuFlags::ZERO).bits(), CpuFlags::ZERO.bits());
     }
@@ -357,7 +415,9 @@ mod test {
     #[test]
     fn test_0x28_plp_pulls_status_from_stack() {
         let mut cpu = create_cpu(vec![0x08, 0x28, 0x00]);
-        cpu.load_and_run();
+        cpu.reset();
+        cpu.program_counter = 0x8000;
+        cpu.run();
         assert_eq!(cpu.status.clone().bitand(CpuFlags::ZERO).bits(), 0);
         assert_eq!(cpu.status.bitand(CpuFlags::CARRY).bits(), 0);
         assert_eq!(cpu.stack_pointer, 0xFD);
@@ -366,7 +426,9 @@ mod test {
     #[test]
     fn test_pha_pla_round_trip() {
         let mut cpu = create_cpu(vec![0x48, 0x68, 0x00]);
-        cpu.load_and_run();
+        cpu.reset();
+        cpu.program_counter = 0x8000;
+        cpu.run();
         assert_eq!(cpu.register_a, 0);
         assert_eq!(cpu.stack_pointer, 0xFD);
     }
@@ -381,7 +443,9 @@ mod test {
             0x68,       // PLA - restore accumulator
             0x00        // BRK
         ]);
-        cpu.load_and_run();
+        cpu.reset();
+        cpu.program_counter = 0x8000;
+        cpu.run();
         assert_eq!(cpu.register_a, 0);
         assert_eq!(cpu.status.bitand(CpuFlags::CARRY).bits(), 0);
         assert_eq!(cpu.stack_pointer, 0xFD);
@@ -390,7 +454,9 @@ mod test {
     #[test]
     fn test_stack_underflow_behavior() {
         let mut cpu = create_cpu(vec![0x68, 0x68, 0x68, 0x00]); // PLA, BRK
-        cpu.load_and_run();
+        cpu.reset();
+        cpu.program_counter = 0x8000;
+        cpu.run();
         assert_eq!(cpu.register_a, 0x00);
         assert_eq!(cpu.stack_pointer, 0x00);
     }
@@ -402,7 +468,9 @@ mod test {
             0x29, 0x55,     // AND #$55
             0x00
         ]);
-        cpu.load_and_run();
+        cpu.reset();
+        cpu.program_counter = 0x8000;
+        cpu.run();
         assert_eq!(cpu.register_a, 0x05);
         assert!(!cpu.status.contains(CpuFlags::ZERO));
         assert!(!cpu.status.contains(CpuFlags::NEGATIVE));
@@ -415,7 +483,9 @@ mod test {
             0x29, 0x00,     // AND #$00
             0x00
         ]);
-        cpu.load_and_run();
+        cpu.reset();
+        cpu.program_counter = 0x8000;
+        cpu.run();
         assert_eq!(cpu.register_a, 0x00);
         assert!(cpu.status.contains(CpuFlags::ZERO));
     }
@@ -427,7 +497,9 @@ mod test {
             0x29, 0xff,     // AND #$ff
             0x00
         ]);
-        cpu.load_and_run();
+        cpu.reset();
+        cpu.program_counter = 0x8000;
+        cpu.run();
         assert_eq!(cpu.register_a, 0x80);
         assert!(cpu.status.contains(CpuFlags::NEGATIVE));
     }
@@ -439,7 +511,9 @@ mod test {
             0x49, 0x55,     // EOR #$55
             0x00
         ]);
-        cpu.load_and_run();
+        cpu.reset();
+        cpu.program_counter = 0x8000;
+        cpu.run();
         assert_eq!(cpu.register_a, 0xff);
         assert!(cpu.status.contains(CpuFlags::NEGATIVE));
     }
@@ -451,7 +525,9 @@ mod test {
             0x49, 0x55,     // EOR #$55
             0x00
         ]);
-        cpu.load_and_run();
+        cpu.reset();
+        cpu.program_counter = 0x8000;
+        cpu.run();
         assert_eq!(cpu.register_a, 0x00);
         assert!(cpu.status.contains(CpuFlags::ZERO));
     }
@@ -463,7 +539,9 @@ mod test {
             0x09, 0xf0,     // ORA #$f0
             0x00
         ]);
-        cpu.load_and_run();
+        cpu.reset();
+        cpu.program_counter = 0x8000;
+        cpu.run();
         assert_eq!(cpu.register_a, 0xff);
         assert!(cpu.status.contains(CpuFlags::NEGATIVE));
     }
@@ -475,7 +553,9 @@ mod test {
             0x09, 0x00,     // ORA #$00
             0x00
         ]);
-        cpu.load_and_run();
+        cpu.reset();
+        cpu.program_counter = 0x8000;
+        cpu.run();
         assert_eq!(cpu.register_a, 0x00);
         assert!(cpu.status.contains(CpuFlags::ZERO));
     }
@@ -489,7 +569,9 @@ mod test {
             0x05, 0x10,     // ORA $10
             0x00
         ]);
-        cpu.load_and_run();
+        cpu.reset();
+        cpu.program_counter = 0x8000;
+        cpu.run();
         assert_eq!(cpu.register_a, 0x3f);
         assert!(!cpu.status.contains(CpuFlags::ZERO));
     }
@@ -503,7 +585,9 @@ mod test {
             0x25, 0x20,     // AND $20
             0x00
         ]);
-        cpu.load_and_run();
+        cpu.reset();
+        cpu.program_counter = 0x8000;
+        cpu.run();
         assert_eq!(cpu.register_a, 0xaa);
         assert!(cpu.status.contains(CpuFlags::NEGATIVE));
     }
@@ -517,7 +601,9 @@ mod test {
             0x45, 0x30,     // EOR $30
             0x00
         ]);
-        cpu.load_and_run();
+        cpu.reset();
+        cpu.program_counter = 0x8000;
+        cpu.run();
         assert_eq!(cpu.register_a, 0xff);
         assert!(cpu.status.contains(CpuFlags::NEGATIVE));
         assert!(!cpu.status.contains(CpuFlags::ZERO));
@@ -530,7 +616,9 @@ mod test {
             0x0a,           // ASL A
             0x00
         ]);
-        cpu.load_and_run();
+        cpu.reset();
+        cpu.program_counter = 0x8000;
+        cpu.run();
         assert_eq!(cpu.register_a, 0x84);
         assert!(!cpu.status.contains(CpuFlags::CARRY));
         assert!(!cpu.status.contains(CpuFlags::ZERO));
@@ -544,7 +632,9 @@ mod test {
             0x0a,           // ASL A
             0x00
         ]);
-        cpu.load_and_run();
+        cpu.reset();
+        cpu.program_counter = 0x8000;
+        cpu.run();
         assert_eq!(cpu.register_a, 0x02);
         assert!(cpu.status.contains(CpuFlags::CARRY));
         assert!(!cpu.status.contains(CpuFlags::ZERO));
@@ -558,7 +648,9 @@ mod test {
             0x06, 0x20,     // ASL $20
             0x00
         ]);
-        cpu.load_and_run();
+        cpu.reset();
+        cpu.program_counter = 0x8000;
+        cpu.run();
         assert_eq!(cpu.mem_read(0x20), 0x66);
         assert!(!cpu.status.contains(CpuFlags::CARRY));
     }
@@ -570,7 +662,9 @@ mod test {
             0x4a,           // LSR A
             0x00
         ]);
-        cpu.load_and_run();
+        cpu.reset();
+        cpu.program_counter = 0x8000;
+        cpu.run();
         assert_eq!(cpu.register_a, 0x42);
         assert!(!cpu.status.contains(CpuFlags::CARRY));
         assert!(!cpu.status.contains(CpuFlags::ZERO));
@@ -583,7 +677,9 @@ mod test {
             0x4a,           // LSR A
             0x00
         ]);
-        cpu.load_and_run();
+        cpu.reset();
+        cpu.program_counter = 0x8000;
+        cpu.run();
         assert_eq!(cpu.register_a, 0x00);
         assert!(cpu.status.contains(CpuFlags::CARRY));
         assert!(cpu.status.contains(CpuFlags::ZERO));
@@ -598,7 +694,9 @@ mod test {
             0x2a,           // ROL A (rotate with carry)
             0x00
         ]);
-        cpu.load_and_run();
+        cpu.reset();
+        cpu.program_counter = 0x8000;
+        cpu.run();
         assert_eq!(cpu.register_a, 0);
         assert!(cpu.status.contains(CpuFlags::CARRY));
     }
@@ -612,7 +710,9 @@ mod test {
             0x6a,           // ROR A (rotate with carry)
             0x00
         ]);
-        cpu.load_and_run();
+        cpu.reset();
+        cpu.program_counter = 0x8000;
+        cpu.run();
         assert_eq!(cpu.register_a, 0x40);
         assert!(!cpu.status.contains(CpuFlags::CARRY));
     }
@@ -625,7 +725,9 @@ mod test {
             0x66, 0x40,     // ROR $40
             0x00
         ]);
-        cpu.load_and_run();
+        cpu.reset();
+        cpu.program_counter = 0x8000;
+        cpu.run();
         assert_eq!(cpu.mem_read(0x40), 0x00);
         assert!(!cpu.status.contains(CpuFlags::CARRY));
         assert!(cpu.status.contains(CpuFlags::ZERO));
@@ -638,7 +740,9 @@ mod test {
             0x18,           // CLC
             0x00
         ]);
-        cpu.load_and_run();
+        cpu.reset();
+        cpu.program_counter = 0x8000;
+        cpu.run();
         assert!(!cpu.status.contains(CpuFlags::CARRY));
     }
 
@@ -649,7 +753,9 @@ mod test {
             0x38,           // SEC
             0x00
         ]);
-        cpu.load_and_run();
+        cpu.reset();
+        cpu.program_counter = 0x8000;
+        cpu.run();
         assert!(cpu.status.contains(CpuFlags::CARRY));
     }
 
@@ -660,7 +766,9 @@ mod test {
             0xd8,           // CLD
             0x00
         ]);
-        cpu.load_and_run();
+        cpu.reset();
+        cpu.program_counter = 0x8000;
+        cpu.run();
         assert!(!cpu.status.contains(CpuFlags::DECIMAL));
     }
 
@@ -671,7 +779,9 @@ mod test {
             0xf8,           // SED
             0x00
         ]);
-        cpu.load_and_run();
+        cpu.reset();
+        cpu.program_counter = 0x8000;
+        cpu.run();
         assert!(cpu.status.contains(CpuFlags::DECIMAL));
     }
 
@@ -682,7 +792,9 @@ mod test {
             0x58,           // CLI
             0x00
         ]);
-        cpu.load_and_run();
+        cpu.reset();
+        cpu.program_counter = 0x8000;
+        cpu.run();
         assert!(!cpu.status.contains(CpuFlags::INTERRUPT));
     }
 
@@ -693,7 +805,9 @@ mod test {
             0x78,           // SEI
             0x00
         ]);
-        cpu.load_and_run();
+        cpu.reset();
+        cpu.program_counter = 0x8000;
+        cpu.run();
         assert!(cpu.status.contains(CpuFlags::INTERRUPT));
     }
 
@@ -708,7 +822,9 @@ mod test {
             0x58,           // CLI
             0x00
         ]);
-        cpu.load_and_run();
+        cpu.reset();
+        cpu.program_counter = 0x8000;
+        cpu.run();
         assert!(!cpu.status.contains(CpuFlags::CARRY));
         assert!(!cpu.status.contains(CpuFlags::DECIMAL));
         assert!(!cpu.status.contains(CpuFlags::INTERRUPT));
@@ -721,7 +837,9 @@ mod test {
             0xc9, 0x42,     // CMP #$42
             0x00
         ]);
-        cpu.load_and_run();
+        cpu.reset();
+        cpu.program_counter = 0x8000;
+        cpu.run();
         assert!(cpu.status.contains(CpuFlags::ZERO));
         assert!(cpu.status.contains(CpuFlags::CARRY));
         assert!(!cpu.status.contains(CpuFlags::NEGATIVE));
@@ -734,7 +852,9 @@ mod test {
             0xc9, 0x7f,     // CMP #$7f
             0x00
         ]);
-        cpu.load_and_run();
+        cpu.reset();
+        cpu.program_counter = 0x8000;
+        cpu.run();
         assert!(!cpu.status.contains(CpuFlags::ZERO));
         assert!(cpu.status.contains(CpuFlags::CARRY));
         assert!(!cpu.status.contains(CpuFlags::NEGATIVE));
@@ -747,7 +867,9 @@ mod test {
             0xc9, 0x41,     // CMP #$41
             0x00
         ]);
-        cpu.load_and_run();
+        cpu.reset();
+        cpu.program_counter = 0x8000;
+        cpu.run();
         assert!(!cpu.status.contains(CpuFlags::ZERO));
         assert!(!cpu.status.contains(CpuFlags::CARRY));
         assert!(cpu.status.contains(CpuFlags::NEGATIVE));
@@ -762,7 +884,9 @@ mod test {
             0xc5, 0x20,     // CMP $20
             0x00
         ]);
-        cpu.load_and_run();
+        cpu.reset();
+        cpu.program_counter = 0x8000;
+        cpu.run();
         assert!(!cpu.status.contains(CpuFlags::ZERO));
         assert!(cpu.status.contains(CpuFlags::CARRY));
         assert!(!cpu.status.contains(CpuFlags::NEGATIVE));
@@ -775,7 +899,9 @@ mod test {
             0xe0, 0xfe,     // CPX #$fe
             0x00
         ]);
-        cpu.load_and_run();
+        cpu.reset();
+        cpu.program_counter = 0x8000;
+        cpu.run();
         assert!(!cpu.status.contains(CpuFlags::ZERO));
         assert!(cpu.status.contains(CpuFlags::CARRY));
         assert!(!cpu.status.contains(CpuFlags::NEGATIVE));
@@ -790,7 +916,9 @@ mod test {
             0xe4, 0x10,     // CPX $10
             0x00
         ]);
-        cpu.load_and_run();
+        cpu.reset();
+        cpu.program_counter = 0x8000;
+        cpu.run();
         assert!(!cpu.status.contains(CpuFlags::ZERO));
         assert!(cpu.status.contains(CpuFlags::CARRY));
         assert!(cpu.status.contains(CpuFlags::NEGATIVE));
@@ -803,7 +931,9 @@ mod test {
             0xc0, 0x37,     // CPY #$37
             0x00
         ]);
-        cpu.load_and_run();
+        cpu.reset();
+        cpu.program_counter = 0x8000;
+        cpu.run();
         assert!(cpu.status.contains(CpuFlags::ZERO));
         assert!(cpu.status.contains(CpuFlags::CARRY));
         assert!(!cpu.status.contains(CpuFlags::NEGATIVE));
@@ -818,7 +948,9 @@ mod test {
             0xcc, 0x00, 0x02, // CPY $0200
             0x00
         ]);
-        cpu.load_and_run();
+        cpu.reset();
+        cpu.program_counter = 0x8000;
+        cpu.run();
         assert!(!cpu.status.contains(CpuFlags::ZERO));
         assert!(cpu.status.contains(CpuFlags::CARRY));
         assert!(!cpu.status.contains(CpuFlags::NEGATIVE));
@@ -831,7 +963,9 @@ mod test {
             0xc9, 0x80,     // CMP #$80
             0x00
         ]);
-        cpu.load_and_run();
+        cpu.reset();
+        cpu.program_counter = 0x8000;
+        cpu.run();
         assert!(!cpu.status.contains(CpuFlags::ZERO));
         assert!(!cpu.status.contains(CpuFlags::CARRY));
         assert!(cpu.status.contains(CpuFlags::NEGATIVE));
@@ -844,7 +978,9 @@ mod test {
             0xe0, 0xff,     // CPX #$ff
             0x00
         ]);
-        cpu.load_and_run();
+        cpu.reset();
+        cpu.program_counter = 0x8000;
+        cpu.run();
         assert!(!cpu.status.contains(CpuFlags::ZERO));
         assert!(!cpu.status.contains(CpuFlags::CARRY));
         assert!(!cpu.status.contains(CpuFlags::NEGATIVE));
@@ -859,7 +995,9 @@ mod test {
             0xa9, 0x42,     // LDA #$42 (executed)
             0x00
         ]);
-        cpu.load_and_run();
+        cpu.reset();
+        cpu.program_counter = 0x8000;
+        cpu.run();
         assert_eq!(cpu.register_a, 0x42);
     }
 
@@ -871,7 +1009,9 @@ mod test {
             0xa9, 0x42,     // LDA #$42 (executed)
             0x00
         ]);
-        cpu.load_and_run();
+        cpu.reset();
+        cpu.program_counter = 0x8000;
+        cpu.run();
         assert_eq!(cpu.register_a, 0x42);
     }
 
@@ -884,7 +1024,9 @@ mod test {
             0xa9, 0x42,     // LDA #$42 (executed)
             0x00
         ]);
-        cpu.load_and_run();
+        cpu.reset();
+        cpu.program_counter = 0x8000;
+        cpu.run();
         assert_eq!(cpu.register_a, 0x42);
     }
 
@@ -897,7 +1039,9 @@ mod test {
             0xa9, 0x42,     // LDA #$42 (executed)
             0x00
         ]);
-        cpu.load_and_run();
+        cpu.reset();
+        cpu.program_counter = 0x8000;
+        cpu.run();
         assert_eq!(cpu.register_a, 0x42);
     }
 
@@ -910,7 +1054,9 @@ mod test {
             0xa9, 0x42,     // LDA #$42 (executed)
             0x00
         ]);
-        cpu.load_and_run();
+        cpu.reset();
+        cpu.program_counter = 0x8000;
+        cpu.run();
         assert_eq!(cpu.register_a, 0x42);
     }
 
@@ -923,7 +1069,9 @@ mod test {
             0xa9, 0x42,     // LDA #$42 (executed)
             0x00
         ]);
-        cpu.load_and_run();
+        cpu.reset();
+        cpu.program_counter = 0x8000;
+        cpu.run();
         assert_eq!(cpu.register_a, 0x42);
     }
 
@@ -936,7 +1084,9 @@ mod test {
             0xa9, 0x42,     // LDA #$42 (executed)
             0x00
         ]);
-        cpu.load_and_run();
+        cpu.reset();
+        cpu.program_counter = 0x8000;
+        cpu.run();
         assert_eq!(cpu.register_a, 0x42);
     }
 
@@ -949,7 +1099,9 @@ mod test {
             0xa9, 0x42,     // LDA #$42
             0x00
         ]);
-        cpu.load_and_run();
+        cpu.reset();
+        cpu.program_counter = 0x8000;
+        cpu.run();
         assert_eq!(cpu.register_x, 0x00);
         assert_eq!(cpu.register_a, 0x42);
     }
@@ -961,7 +1113,9 @@ mod test {
             0xf0, 0x7e,     // BEQ +126 (will actually wrap to $0580)
             0x00
         ]);
-        cpu.load_and_run();
+        cpu.reset();
+        cpu.program_counter = 0x8000;
+        cpu.run();
         assert!(cpu.program_counter > 0x0600);
     }
 
@@ -973,7 +1127,9 @@ mod test {
             0xA9, 0x42,     // LDA #$42 (executed)
             0x00            // BRK
         ]);
-        cpu.load_and_run();
+        cpu.reset();
+        cpu.program_counter = 0x8000;
+        cpu.run();
         assert_eq!(cpu.register_a, 0x42);
     }
 
@@ -987,7 +1143,9 @@ mod test {
         ]);
 
         cpu.mem_write_u16(0x0200, 0x8005);
-        cpu.load_and_run();
+        cpu.reset();
+        cpu.program_counter = 0x8000;
+        cpu.run();
 
         assert_eq!(cpu.register_a, 0x42);
     }
@@ -1002,7 +1160,9 @@ mod test {
             0x60,           // RTS
             0x00            // BRK
         ]);
-        cpu.load_and_run();
+        cpu.reset();
+        cpu.program_counter = 0x8000;
+        cpu.run();
         assert_eq!(cpu.register_a, 0x01);
         assert_eq!(cpu.stack_pointer, 0xFD);
     }
@@ -1019,7 +1179,9 @@ mod test {
         cpu.mem_write(0x02FF, 0x05);
         cpu.mem_write(0x0200, 0x80);
 
-        cpu.load_and_run();
+        cpu.reset();
+        cpu.program_counter = 0x8000;
+        cpu.run();
         assert_eq!(cpu.register_a, 0x42);
     }
 
@@ -1037,7 +1199,9 @@ mod test {
             0x60,           // RTS (from sub2)
             0x00            // BRK
         ]);
-        cpu.load_and_run();
+        cpu.reset();
+        cpu.program_counter = 0x8000;
+        cpu.run();
         assert_eq!(cpu.register_a, 0x01);
         assert_eq!(cpu.stack_pointer, 0xFD);
     }
@@ -1050,7 +1214,9 @@ mod test {
             0x60,           // RTS (should return to $8003)
             0x00            // BRK
         ]);
-        cpu.load_and_run();
+        cpu.reset();
+        cpu.program_counter = 0x8000;
+        cpu.run();
         assert_eq!(cpu.program_counter, 0x8004);
     }
 
@@ -1063,7 +1229,9 @@ mod test {
         ]);
 
         cpu.mem_write(0x0042, 0xC0);
-        cpu.load_and_run();
+        cpu.reset();
+        cpu.program_counter = 0x8000;
+        cpu.run();
 
         assert!(!cpu.status.contains(CpuFlags::ZERO));
         assert!(cpu.status.contains(CpuFlags::NEGATIVE));
@@ -1078,7 +1246,9 @@ mod test {
             0x00
         ]);
         cpu.mem_write(0x1234, 0x40);
-        cpu.load_and_run();
+        cpu.reset();
+        cpu.program_counter = 0x8000;
+        cpu.run();
         assert!(cpu.status.contains(CpuFlags::ZERO));
         assert!(!cpu.status.contains(CpuFlags::NEGATIVE));
         assert!(cpu.status.contains(CpuFlags::OVERFLOW));
@@ -1092,7 +1262,9 @@ mod test {
             0x00
         ]);
         cpu.mem_write(0x30, 0x0F);
-        cpu.load_and_run();
+        cpu.reset();
+        cpu.program_counter = 0x8000;
+        cpu.run();
 
         assert!(cpu.status.contains(CpuFlags::ZERO));
         assert!(!cpu.status.contains(CpuFlags::NEGATIVE));
@@ -1107,7 +1279,9 @@ mod test {
             0x00
         ]);
         cpu.mem_write(0x50, 0x80);
-        cpu.load_and_run();
+        cpu.reset();
+        cpu.program_counter = 0x8000;
+        cpu.run();
 
         assert!(cpu.status.contains(CpuFlags::ZERO));
         assert!(cpu.status.contains(CpuFlags::NEGATIVE));
@@ -1122,7 +1296,9 @@ mod test {
             0x00
         ]);
         cpu.mem_write(0x60, 0x40);
-        cpu.load_and_run();
+        cpu.reset();
+        cpu.program_counter = 0x8000;
+        cpu.run();
 
         assert!(cpu.status.contains(CpuFlags::ZERO));
         assert!(!cpu.status.contains(CpuFlags::NEGATIVE));
@@ -1137,7 +1313,9 @@ mod test {
             0x00
         ]);
         cpu.mem_write(0x70, 0xFF);
-        cpu.load_and_run();
+        cpu.reset();
+        cpu.program_counter = 0x8000;
+        cpu.run();
         assert_eq!(cpu.register_a, 0x55);
     }
 
@@ -1149,7 +1327,9 @@ mod test {
             0x00
         ]);
         cpu.mem_write(0x1234, 0xC0);
-        cpu.load_and_run();
+        cpu.reset();
+        cpu.program_counter = 0x8000;
+        cpu.run();
         assert!(!cpu.status.contains(CpuFlags::ZERO));
         assert!(cpu.status.contains(CpuFlags::NEGATIVE));
         assert!(cpu.status.contains(CpuFlags::OVERFLOW));
@@ -1162,7 +1342,9 @@ mod test {
             0x69, 0x20,     // ADC #$20
             0x00
         ]);
-        cpu.load_and_run();
+        cpu.reset();
+        cpu.program_counter = 0x8000;
+        cpu.run();
         assert_eq!(cpu.register_a, 0x30);
         assert!(!cpu.status.contains(CpuFlags::CARRY));
         assert!(!cpu.status.contains(CpuFlags::OVERFLOW));
@@ -1178,7 +1360,9 @@ mod test {
             0x69, 0x20,     // ADC #$20 (should add $21 with carry)
             0x00
         ]);
-        cpu.load_and_run();
+        cpu.reset();
+        cpu.program_counter = 0x8000;
+        cpu.run();
         assert_eq!(cpu.register_a, 0x31);
     }
 
@@ -1189,7 +1373,9 @@ mod test {
             0x69, 0x01,     // ADC #$01
             0x00
         ]);
-        cpu.load_and_run();
+        cpu.reset();
+        cpu.program_counter = 0x8000;
+        cpu.run();
         assert_eq!(cpu.register_a, 0x00);
         assert!(cpu.status.contains(CpuFlags::CARRY));
         assert!(cpu.status.contains(CpuFlags::ZERO));
@@ -1202,7 +1388,9 @@ mod test {
             0x69, 0x01,     // ADC #$01 (results in 128, which is negative in signed)
             0x00
         ]);
-        cpu.load_and_run();
+        cpu.reset();
+        cpu.program_counter = 0x8000;
+        cpu.run();
         assert_eq!(cpu.register_a, 0x80);
         assert!(cpu.status.contains(CpuFlags::OVERFLOW));
         assert!(cpu.status.contains(CpuFlags::NEGATIVE));
@@ -1215,7 +1403,9 @@ mod test {
             0x69, 0xFF,     // ADC #$FF (-1)
             0x00
         ]);
-        cpu.load_and_run();
+        cpu.reset();
+        cpu.program_counter = 0x8000;
+        cpu.run();
         assert_eq!(cpu.register_a, 0x7F);
         assert!(cpu.status.contains(CpuFlags::OVERFLOW));
         assert!(!cpu.status.contains(CpuFlags::NEGATIVE));
@@ -1230,7 +1420,9 @@ mod test {
             0x00
         ]);
         cpu.mem_write(0x42, 0x11);
-        cpu.load_and_run();
+        cpu.reset();
+        cpu.program_counter = 0x8000;
+        cpu.run();
         assert_eq!(cpu.register_a, 0x33);
     }
 
@@ -1242,7 +1434,9 @@ mod test {
             0xE9, 0x30,     // SBC #$30
             0x00
         ]);
-        cpu.load_and_run();
+        cpu.reset();
+        cpu.program_counter = 0x8000;
+        cpu.run();
         assert_eq!(cpu.register_a, 0x20);
         assert!(cpu.status.contains(CpuFlags::CARRY));
         assert!(!cpu.status.contains(CpuFlags::OVERFLOW));
@@ -1256,7 +1450,9 @@ mod test {
             0xE9, 0x30,     // SBC #$30 (actually subtracts $31)
             0x00
         ]);
-        cpu.load_and_run();
+        cpu.reset();
+        cpu.program_counter = 0x8000;
+        cpu.run();
         assert_eq!(cpu.register_a, 0x1F);
         assert!(cpu.status.contains(CpuFlags::CARRY));
     }
@@ -1269,7 +1465,9 @@ mod test {
             0xE9, 0x20,     // SBC #$20
             0x00
         ]);
-        cpu.load_and_run();
+        cpu.reset();
+        cpu.program_counter = 0x8000;
+        cpu.run();
         assert_eq!(cpu.register_a, 0xF0);
         assert!(!cpu.status.contains(CpuFlags::CARRY));
         assert!(cpu.status.contains(CpuFlags::NEGATIVE));
@@ -1283,7 +1481,9 @@ mod test {
             0xE9, 0xB0,     // SBC #$B0 (-80) (80 - (-80) = 160)
             0x00
         ]);
-        cpu.load_and_run();
+        cpu.reset();
+        cpu.program_counter = 0x8000;
+        cpu.run();
         assert_eq!(cpu.register_a, 0xA0); // 160 in unsigned
         assert!(cpu.status.contains(CpuFlags::OVERFLOW));
         assert!(cpu.status.contains(CpuFlags::NEGATIVE));
@@ -1298,7 +1498,9 @@ mod test {
             0xE9, 0x70,     // SBC #$70 (112) (-112 - 112 = -224)
             0x00
         ]);
-        cpu.load_and_run();
+        cpu.reset();
+        cpu.program_counter = 0x8000;
+        cpu.run();
         assert_eq!(cpu.register_a, 0x20);
         assert!(cpu.status.contains(CpuFlags::OVERFLOW));
         assert!(!cpu.status.contains(CpuFlags::NEGATIVE));
@@ -1313,7 +1515,9 @@ mod test {
             0xE9, 0x40,     // SBC #$40
             0x00
         ]);
-        cpu.load_and_run();
+        cpu.reset();
+        cpu.program_counter = 0x8000;
+        cpu.run();
         assert_eq!(cpu.register_a, 0x00);
         assert!(cpu.status.contains(CpuFlags::ZERO));
         assert!(cpu.status.contains(CpuFlags::CARRY));

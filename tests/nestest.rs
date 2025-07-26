@@ -10,7 +10,7 @@ mod test {
     #[test]
     fn run_nestest() {
         let data: Vec<u8> = fs::read("tests/nestest.nes").unwrap_or_else(|e| panic!("{}", e));
-        let bus = Bus::new(Some(Cartridge::new(data).unwrap_or_else(|e| panic!("{}", e))));
+        let bus = Bus::new(Some(Cartridge::new(data).unwrap_or_else(|e| panic!("{}", e))), move |_, _| {});
         let mut cpu = CPU::new(bus);
         cpu.program_counter = 0xC000;
         let mut result: Vec<String> = vec![];
