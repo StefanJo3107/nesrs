@@ -46,6 +46,22 @@ impl ControllerRegister {
         return self.contains(ControllerRegister::GENERATE_NMI);
     }
 
+    pub fn bknd_pattern_addr(&self) -> u16 {
+        if !self.contains(ControllerRegister::BACKGROUND_PATTERN_ADDR) {
+            0
+        } else {
+            0x1000
+        }
+    }
+
+    pub fn sprt_pattern_addr(&self) -> u16 {
+        if !self.contains(ControllerRegister::SPRITE_PATTERN_ADDR) {
+            0
+        } else {
+            0x1000
+        }
+    }
+
     pub fn update(&mut self, data: u8) {
         *self = ControllerRegister::from_bits_truncate(data);
     }

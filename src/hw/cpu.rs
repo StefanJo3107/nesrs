@@ -40,14 +40,14 @@ bitflags! {
 const STACK_PAGE: u16 = 0x0100;
 const STACK_START: u8 = 0xfd;
 
-pub struct CPU {
+pub struct CPU<'a> {
     pub register_a: u8,
     pub register_x: u8,
     pub register_y: u8,
     pub status: CpuFlags,
     pub stack_pointer: u8,
     pub program_counter: u16,
-    bus: Bus,
+    bus: Bus<'a>,
 }
 
 #[derive(Debug, Clone, Copy, Eq, PartialEq)]
@@ -66,7 +66,7 @@ pub enum AddressingMode {
     Relative,
 }
 
-impl Memory for CPU {
+impl<'a> Memory for CPU<'a> {
     fn mem_read(&mut self, addr: u16) -> u8 {
         self.bus.mem_read(addr)
     }
@@ -84,7 +84,7 @@ impl Memory for CPU {
     }
 }
 
-impl CPU {
+impl<'a> CPU<'a> {
     pub fn new(bus: Bus) -> CPU {
         CPU {
             register_a: 0,
@@ -754,7 +754,7 @@ impl CPU {
         self.status = CpuFlags::from_bits_truncate(0b100100);
         self.stack_pointer = STACK_START;
 
-        self.program_counter = 0x8000;
+        self.program_counter = self.mem_read_u16(0xFFFC);
     }
 
     fn interrupt(&mut self, interrupt: interrupt::Interrupt) {
@@ -771,7 +771,7 @@ impl CPU {
     }
 
     pub fn run(&mut self) {
-        self.run_with_callback(|cpu| { println!("{}", trace(cpu)); });
+        self.run_with_callback(|cpu| {});
     }
 
     pub fn run_with_callback<F>(&mut self, mut callback: F)
@@ -782,7 +782,7 @@ impl CPU {
             if let Some(_nmi) = self.bus.poll_nmi_status() {
                 self.interrupt(interrupt::NMI);
             }
-            
+
             callback(self);
             let opcode_byte = self.mem_read(self.program_counter);
             self.program_counter += 1;

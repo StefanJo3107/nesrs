@@ -59,24 +59,28 @@ impl PPU {
         }
     }
     pub fn tick(&mut self, cycles: u8) -> bool {
+        self.cycles += cycles as usize;
         if self.cycles >= 341 {
             self.cycles = self.cycles - 341;
             self.scanline += 1;
 
             if self.scanline == 241 {
+                self.status_register.set_vblank_status(true);
+                self.status_register.set_sprite_zero_hit(false);
                 if self.controller_register.generate_vblank_nmi() {
-                    self.status_register.set_vblank_status(true);
-                    todo!("Should trigger NMI interrupt")
+                    self.nmi_interrupt = Some(1);
                 }
             }
 
             if self.scanline >= 262 {
                 self.scanline = 0;
+                self.nmi_interrupt = None;
+                self.status_register.set_sprite_zero_hit(false);
                 self.status_register.reset_vblank_status();
                 return true;
             }
         }
-        return false;
+        false
     }
     pub(crate) fn write_to_ppu_addr_reg(&mut self, value: u8) {
         self.address_register.update(value);
@@ -190,7 +194,7 @@ impl PPU {
         }
     }
 
-    fn write_oam_dma(&mut self, data: &[u8; 256]) {
+    pub fn write_oam_dma(&mut self, data: &[u8; 256]) {
         for x in data.iter() {
             self.oam_data[self.oam_address as usize] = *x;
             self.oam_address = self.oam_address.wrapping_add(1);
