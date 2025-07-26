@@ -2,6 +2,7 @@ mod tests;
 
 use crate::hw::cartridge;
 use crate::hw::cartridge::Cartridge;
+use crate::hw::joypad::Joypad;
 use crate::hw::memory::Memory;
 use crate::hw::ppu::PPU;
 
@@ -11,7 +12,8 @@ pub struct Bus<'call> {
     ppu: PPU,
     cycles: usize,
 
-    gameloop_callback: Box<dyn FnMut(&PPU) + 'call>,
+    gameloop_callback: Box<dyn FnMut(&PPU, &mut Joypad) + 'call>,
+    joypad1: Joypad,
 }
 
 const RAM_START: u16 = 0x0000;
@@ -24,7 +26,7 @@ const PRG_END: u16 = 0xFFFF;
 impl<'a> Bus<'a> {
     pub fn new<'call, F>(cartridge: Option<Cartridge>, gameloop_callback: F) -> Bus<'call>
     where
-        F: FnMut(&PPU) + 'call,
+        F: FnMut(&PPU, &mut Joypad) + 'call,
     {
         let ppu = if cartridge.is_some() {
             let c = cartridge.clone().unwrap().clone();
@@ -37,6 +39,7 @@ impl<'a> Bus<'a> {
             ppu,
             cycles: 0,
             gameloop_callback: Box::from(gameloop_callback),
+            joypad1: Joypad::new(),
         }
     }
 
@@ -71,7 +74,7 @@ impl<'a> Bus<'a> {
         let nmi_after = self.ppu.nmi_interrupt.is_some();
 
         if !nmi_before && nmi_after {
-            (self.gameloop_callback)(&self.ppu);
+            (self.gameloop_callback)(&self.ppu, &mut self.joypad1);
         }
     }
 }
@@ -93,6 +96,14 @@ impl<'a> Memory for Bus<'a> {
             0x2008..=PPU_REG_END => {
                 let mirror_down_addr = addr & 0b00100000_00000111;
                 self.mem_read(mirror_down_addr)
+            }
+            0x4016 => {
+                self.joypad1.read()
+            }
+
+            0x4017 => {
+                // ignore joypad 2
+                0
             }
             PRG_START..=PRG_END => {
                 self.read_prg_rom(addr)
@@ -152,7 +163,12 @@ impl<'a> Memory for Bus<'a> {
                 // let add_cycles: u16 = if self.cycles % 2 == 1 { 514 } else { 513 };
                 // self.tick(add_cycles); //todo this will cause weird effects as PPU will have 513/514 * 3 ticks
             }
-
+            0x4016 => {
+                self.joypad1.write(data);
+            }
+            0x4017 => {
+                // ignore joypad 2
+            }
             0x8000..=0xFFFF => panic!("Attempt to write to Cartridge ROM space: {:x}", addr),
             _ => {
                 println!("Ignoring mem write-access at {:x}", addr);
