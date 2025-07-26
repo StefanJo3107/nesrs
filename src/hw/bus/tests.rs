@@ -73,35 +73,31 @@ mod tests {
     }
 
     #[test]
-    #[should_panic(expected = "PPU is not supported yet")]
+    #[should_panic(expected = "Attempt to read from write-only PPU address 2000")]
     fn test_ppu_read_panics() {
-        let bus = Bus::new(None);
+        let mut bus = Bus::new(None);
         bus.mem_read(0x2000);
     }
 
     #[test]
-    #[should_panic(expected = "PPU is not supported yet")]
     fn test_ppu_write_panics() {
         let mut bus = Bus::new(None);
         bus.mem_write(0x2000, 0x42);
     }
 
     #[test]
-    #[should_panic(expected = "PPU is not supported yet")]
     fn test_ppu_read_end_panics() {
-        let bus = Bus::new(None);
+        let mut bus = Bus::new(None);
         bus.mem_read(0x3FFF); // PPU register end
     }
 
     #[test]
-    #[should_panic(expected = "PPU is not supported yet")]
     fn test_ppu_write_end_panics() {
         let mut bus = Bus::new(None);
         bus.mem_write(0x3FFF, 0x42);
     }
 
     #[test]
-    #[should_panic(expected = "PPU is not supported yet")]
     fn test_ppu_middle_range_panics() {
         let mut bus = Bus::new(None);
         bus.mem_write(0x2500, 0x42);
@@ -109,7 +105,7 @@ mod tests {
 
     #[test]
     fn test_unmapped_memory_read() {
-        let bus = Bus::new(None);
+        let mut bus = Bus::new(None);
 
         assert_eq!(bus.mem_read(0x4000), 0);
         assert_eq!(bus.mem_read(0x8000), 0);

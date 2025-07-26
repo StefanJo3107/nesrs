@@ -9,6 +9,7 @@ pub struct Bus {
     cpu_vram: [u8; 2048],
     cartridge: Option<Cartridge>,
     ppu: PPU,
+    cycles: usize,
 }
 
 const RAM_START: u16 = 0x0000;
@@ -29,6 +30,7 @@ impl Bus {
             cpu_vram: [0; 2048],
             cartridge,
             ppu,
+            cycles: 0,
         }
     }
 
@@ -49,6 +51,15 @@ impl Bus {
         } else {
             0
         }
+    }
+
+    pub fn poll_nmi_status(&mut self) -> Option<u8> {
+        self.ppu.nmi_interrupt.take()
+    }
+
+    pub fn tick(&mut self, cycles: u8) {
+        self.cycles += cycles as usize;
+        self.ppu.tick(cycles * 3);
     }
 }
 

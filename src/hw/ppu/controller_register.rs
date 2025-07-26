@@ -41,6 +41,11 @@ impl ControllerRegister {
             32
         }
     }
+
+    pub fn generate_vblank_nmi(&self) -> bool {
+        return self.contains(ControllerRegister::GENERATE_NMI);
+    }
+
     pub fn update(&mut self, data: u8) {
         *self = ControllerRegister::from_bits_truncate(data);
     }

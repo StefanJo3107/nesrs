@@ -27,7 +27,11 @@ pub struct PPU {
     pub oam_data: [u8; 256],
     pub palette_table: [u8; 32],
 
-    pub internal_data_buf: u8,
+    internal_data_buf: u8,
+
+    scanline: u16,
+    cycles: usize,
+    pub nmi_interrupt: Option<u8>,
 }
 
 impl PPU {
@@ -49,15 +53,41 @@ impl PPU {
             internal_data_buf: 0,
             oam_data: [0; 256],
             oam_address: 0,
+            scanline: 0,
+            cycles: 0,
+            nmi_interrupt: None,
         }
     }
+    pub fn tick(&mut self, cycles: u8) -> bool {
+        if self.cycles >= 341 {
+            self.cycles = self.cycles - 341;
+            self.scanline += 1;
 
+            if self.scanline == 241 {
+                if self.controller_register.generate_vblank_nmi() {
+                    self.status_register.set_vblank_status(true);
+                    todo!("Should trigger NMI interrupt")
+                }
+            }
+
+            if self.scanline >= 262 {
+                self.scanline = 0;
+                self.status_register.reset_vblank_status();
+                return true;
+            }
+        }
+        return false;
+    }
     pub(crate) fn write_to_ppu_addr_reg(&mut self, value: u8) {
         self.address_register.update(value);
     }
 
     pub(crate) fn write_to_ctrl(&mut self, value: u8) {
+        let before_nmi_status = self.controller_register.generate_vblank_nmi();
         self.controller_register.update(value);
+        if !before_nmi_status && self.controller_register.generate_vblank_nmi() && self.status_register.is_in_vblank() {
+            self.nmi_interrupt = Some(1);
+        }
     }
 
     pub(crate) fn write_to_oam_addr(&mut self, value: u8) {

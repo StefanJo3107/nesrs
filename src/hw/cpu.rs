@@ -1,6 +1,7 @@
 mod opcodes;
 mod tests;
 pub mod tracer;
+mod interrupt;
 
 use std::cmp::PartialEq;
 use bitflags::bitflags;
@@ -756,6 +757,19 @@ impl CPU {
         self.program_counter = 0x8000;
     }
 
+    fn interrupt(&mut self, interrupt: interrupt::Interrupt) {
+        self.stack_push_u16(self.program_counter);
+        let mut flag = self.status.clone();
+        flag.set(CpuFlags::BREAK, interrupt.b_flag_mask & 0b010000 == 1);
+        flag.set(CpuFlags::BIT5, interrupt.b_flag_mask & 0b100000 == 1);
+
+        self.stack_push(flag.bits());
+        self.status.insert(CpuFlags::INTERRUPT);
+
+        self.bus.tick(interrupt.cpu_cycles);
+        self.program_counter = self.mem_read_u16(interrupt.vector_addr);
+    }
+
     pub fn run(&mut self) {
         self.run_with_callback(|cpu| { println!("{}", trace(cpu)); });
     }
@@ -765,6 +779,10 @@ impl CPU {
         F: FnMut(&mut CPU),
     {
         loop {
+            if let Some(_nmi) = self.bus.poll_nmi_status() {
+                self.interrupt(interrupt::NMI);
+            }
+            
             callback(self);
             let opcode_byte = self.mem_read(self.program_counter);
             self.program_counter += 1;
@@ -991,6 +1009,7 @@ impl CPU {
                     }
                 }
 
+                self.bus.tick(opcode.cycles);
                 if old_counter == self.program_counter {
                     self.program_counter += opcode.bytes - 1;
                 }
