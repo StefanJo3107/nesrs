@@ -1,9 +1,14 @@
 mod opcodes;
 mod tests;
+pub mod tracer;
+mod interrupt;
 
 use std::cmp::PartialEq;
 use bitflags::bitflags;
+use crate::hw::bus::Bus;
 use crate::hw::cpu::opcodes::{Instruction, OPCODES};
+use crate::hw::cpu::tracer::trace;
+use crate::hw::memory::Memory;
 
 bitflags! {
     // Status Register Flags (bit 7 to bit 0)
@@ -33,16 +38,16 @@ bitflags! {
 }
 
 const STACK_PAGE: u16 = 0x0100;
-const STACK_START: u8 = 0xff;
+const STACK_START: u8 = 0xfd;
 
-pub struct CPU {
+pub struct CPU<'a> {
     pub register_a: u8,
     pub register_x: u8,
     pub register_y: u8,
     pub status: CpuFlags,
     pub stack_pointer: u8,
     pub program_counter: u16,
-    memory: [u8; 0xFFFF],
+    bus: Bus<'a>,
 }
 
 #[derive(Debug, Clone, Copy, Eq, PartialEq)]
@@ -61,38 +66,35 @@ pub enum AddressingMode {
     Relative,
 }
 
-impl CPU {
-    pub fn new() -> CPU {
+impl<'a> Memory for CPU<'a> {
+    fn mem_read(&mut self, addr: u16) -> u8 {
+        self.bus.mem_read(addr)
+    }
+
+    fn mem_write(&mut self, addr: u16, data: u8) {
+        self.bus.mem_write(addr, data);
+    }
+
+    fn mem_read_u16(&mut self, addr: u16) -> u16 {
+        self.bus.mem_read_u16(addr)
+    }
+
+    fn mem_write_u16(&mut self, addr: u16, data: u16) {
+        self.bus.mem_write_u16(addr, data);
+    }
+}
+
+impl<'a> CPU<'a> {
+    pub fn new(bus: Bus) -> CPU {
         CPU {
             register_a: 0,
             register_x: 0,
             register_y: 0,
-            status: CpuFlags::empty(),
-            stack_pointer: 0,
+            status: CpuFlags::from_bits_truncate(0b100100),
+            stack_pointer: STACK_START,
             program_counter: 0,
-            memory: [0; 0xFFFF],
+            bus,
         }
-    }
-
-    fn mem_read(&self, addr: u16) -> u8 {
-        self.memory[addr as usize]
-    }
-
-    fn mem_write(&mut self, addr: u16, data: u8) {
-        self.memory[addr as usize] = data;
-    }
-
-    fn mem_read_u16(&self, addr: u16) -> u16 {
-        let lo = self.mem_read(addr) as u16;
-        let hi = self.mem_read(addr + 1) as u16;
-        (hi << 8) | lo
-    }
-
-    fn mem_write_u16(&mut self, addr: u16, data: u16) {
-        let hi = (data >> 8) as u8;
-        let lo = (data & 0xFF) as u8;
-        self.mem_write(addr, lo);
-        self.mem_write(addr + 1, hi);
     }
 
     fn stack_push(&mut self, data: u8) {
@@ -146,7 +148,7 @@ impl CPU {
         self.mem_read(address)
     }
 
-    fn get_operand_address(&self, mode: AddressingMode) -> u16 {
+    fn get_operand_address(&mut self, mode: AddressingMode) -> u16 {
         match mode {
             AddressingMode::Immediate => self.program_counter,
 
@@ -195,7 +197,7 @@ impl CPU {
                 let base = self.mem_read(self.program_counter);
 
                 let lo = self.mem_read(base as u16);
-                let hi = self.mem_read((base as u8).wrapping_add(1) as u16);
+                let hi = self.mem_read(base.wrapping_add(1) as u16);
                 let deref_base = (hi as u16) << 8 | (lo as u16);
                 let deref = deref_base.wrapping_add(self.register_y as u16);
                 deref
@@ -263,7 +265,6 @@ impl CPU {
 
     fn txs(&mut self, _: AddressingMode) {
         self.stack_pointer = self.register_x;
-        self.update_z_and_n_flags(self.stack_pointer);
     }
 
     fn tya(&mut self, _: AddressingMode) {
@@ -302,7 +303,7 @@ impl CPU {
 
     fn plp(&mut self, _: AddressingMode) {
         self.status = CpuFlags::from_bits(self.stack_pop()).unwrap_or_else(|| panic!("invalid status register"));
-        self.status.remove(CpuFlags::BIT5);
+        self.status.insert(CpuFlags::BIT5);
         self.status.remove(CpuFlags::BREAK);
     }
 
@@ -616,19 +617,18 @@ impl CPU {
     }
 
     fn jsr(&mut self, mode: AddressingMode) {
-        self.stack_push_u16(self.program_counter + 2);
+        self.stack_push_u16(self.program_counter + 2 - 1);
         let address = self.get_operand_address(mode);
         self.program_counter = address
     }
 
     fn rts(&mut self, _: AddressingMode) {
-        self.program_counter = self.stack_pop_u16();
+        self.program_counter = self.stack_pop_u16() + 1;
     }
 
     fn rti(&mut self, _: AddressingMode) {
         self.status = CpuFlags::from_bits(self.stack_pop()).unwrap_or_else(|| panic!("invalid status register"));
-        self.status.remove(CpuFlags::BIT5);
-        self.status.remove(CpuFlags::BREAK);
+        self.status.insert(CpuFlags::BIT5);
         self.program_counter = self.stack_pop_u16();
     }
 
@@ -655,31 +655,135 @@ impl CPU {
         }
     }
 
+    fn lax(&mut self, mode: AddressingMode) {
+        let param = self.get_operand_value(mode);
+        self.register_a = param;
+        self.register_x = param;
+        self.update_z_and_n_flags(self.register_x);
+    }
+
+    fn aax(&mut self, mode: AddressingMode) {
+        let address = self.get_operand_address(mode);
+        self.mem_write(address, self.register_a & self.register_x);
+    }
+
+    fn dcp(&mut self, mode: AddressingMode) {
+        self.dec(mode);
+        self.cmp(mode);
+    }
+
+    fn isc(&mut self, mode: AddressingMode) {
+        self.inc(mode);
+        self.sbc(mode);
+    }
+
+    fn slo(&mut self, mode: AddressingMode) {
+        self.asl(mode);
+        self.ora(mode);
+    }
+
+    fn rla(&mut self, mode: AddressingMode) {
+        self.rol(mode);
+        self.and(mode);
+    }
+
+    fn sre(&mut self, mode: AddressingMode) {
+        self.lsr(mode);
+        self.eor(mode);
+    }
+
+    fn rra(&mut self, mode: AddressingMode) {
+        self.ror(mode);
+        self.adc(mode);
+    }
+
+    fn anc(&mut self, mode: AddressingMode) {
+        let value = self.get_operand_value(mode);
+        self.register_a = self.register_a & value;
+        self.update_z_and_n_flags(self.register_a);
+        if self.status.contains(CpuFlags::NEGATIVE) {
+            self.status.insert(CpuFlags::CARRY);
+        }
+    }
+
+    fn arr(&mut self, mode: AddressingMode) {
+        self.and(mode);
+        self.rora(mode);
+        let bit6 = (self.register_a & 0b0100_0000) >> 6;
+        let bit5 = (self.register_a & 0b0010_0000) >> 5;
+        if bit6 != 0 {
+            self.status.insert(CpuFlags::CARRY);
+        } else {
+            self.status.remove(CpuFlags::CARRY);
+        }
+
+        if bit6 ^ bit5 != 0 {
+            self.status.insert(CpuFlags::OVERFLOW);
+        } else {
+            self.status.remove(CpuFlags::OVERFLOW);
+        }
+    }
+
+    fn asr(&mut self, mode: AddressingMode) {
+        self.and(mode);
+        self.lsra(mode);
+    }
+
+    fn atx(&mut self, mode: AddressingMode) {
+        self.and(mode);
+        self.txa(mode);
+    }
     /* ----------------------------------------- */
 
-    pub fn load_and_run(&mut self, program: Vec<u8>) {
-        self.load(program);
+    pub fn load_and_run(&mut self) {
         self.reset();
         self.run();
     }
 
     pub fn load(&mut self, program: Vec<u8>) {
-        self.memory[0x8000..(0x8000 + program.len())].copy_from_slice(&program);
-        self.mem_write_u16(0xFFFC, 0x8000);
+        for i in 0..(program.len() as u16) {
+            self.mem_write(0x0000 + i, program[i as usize]);
+        }
+        self.mem_write_u16(0xFFFC, 0x0000);
     }
 
     fn reset(&mut self) {
         self.register_a = 0;
         self.register_x = 0;
         self.register_y = 0;
-        self.status = CpuFlags::empty();
+        self.status = CpuFlags::from_bits_truncate(0b100100);
         self.stack_pointer = STACK_START;
 
         self.program_counter = self.mem_read_u16(0xFFFC);
     }
 
+    fn interrupt(&mut self, interrupt: interrupt::Interrupt) {
+        self.stack_push_u16(self.program_counter);
+        let mut flag = self.status.clone();
+        flag.set(CpuFlags::BREAK, interrupt.b_flag_mask & 0b010000 == 1);
+        flag.set(CpuFlags::BIT5, interrupt.b_flag_mask & 0b100000 == 1);
+
+        self.stack_push(flag.bits());
+        self.status.insert(CpuFlags::INTERRUPT);
+
+        self.bus.tick(interrupt.cpu_cycles);
+        self.program_counter = self.mem_read_u16(interrupt.vector_addr);
+    }
+
     pub fn run(&mut self) {
+        self.run_with_callback(|cpu| {});
+    }
+
+    pub fn run_with_callback<F>(&mut self, mut callback: F)
+    where
+        F: FnMut(&mut CPU),
+    {
         loop {
+            if let Some(_nmi) = self.bus.poll_nmi_status() {
+                self.interrupt(interrupt::NMI);
+            }
+
+            callback(self);
             let opcode_byte = self.mem_read(self.program_counter);
             self.program_counter += 1;
             let old_counter = self.program_counter;
@@ -863,9 +967,49 @@ impl CPU {
                     Instruction::BIT => {
                         self.bit(opcode.addressing_mode);
                     }
-                    Instruction::NOP => {}
+                    Instruction::NOP | Instruction::DOP | Instruction::TOP => {}
+                    Instruction::LAX => {
+                        self.lax(opcode.addressing_mode);
+                    }
+                    Instruction::AAX => {
+                        self.aax(opcode.addressing_mode);
+                    }
+                    Instruction::DCP => {
+                        self.dcp(opcode.addressing_mode);
+                    }
+                    Instruction::ISC => {
+                        self.isc(opcode.addressing_mode);
+                    }
+                    Instruction::SLO => {
+                        self.slo(opcode.addressing_mode);
+                    }
+                    Instruction::RLA => {
+                        self.rla(opcode.addressing_mode);
+                    }
+                    Instruction::SRE => {
+                        self.sre(opcode.addressing_mode);
+                    }
+                    Instruction::RRA => {
+                        self.rra(opcode.addressing_mode);
+                    }
+                    Instruction::SBCU => {
+                        self.sbc(opcode.addressing_mode);
+                    }
+                    Instruction::ANC => {
+                        self.anc(opcode.addressing_mode);
+                    }
+                    Instruction::ARR => {
+                        self.arr(opcode.addressing_mode);
+                    }
+                    Instruction::ASR => {
+                        self.asr(opcode.addressing_mode);
+                    }
+                    Instruction::ATX => {
+                        self.atx(opcode.addressing_mode);
+                    }
                 }
 
+                self.bus.tick(opcode.cycles);
                 if old_counter == self.program_counter {
                     self.program_counter += opcode.bytes - 1;
                 }
