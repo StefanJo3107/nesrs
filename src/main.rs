@@ -30,7 +30,7 @@ fn main() {
         .unwrap();
 
     // load the game
-    let bytes: Vec<u8> = std::fs::read("assets/pacman.nes").unwrap();
+    let bytes: Vec<u8> = std::fs::read("assets/supermario.nes").unwrap();
     let crt = Cartridge::new(bytes).unwrap();
 
     let mut frame = Frame::new();

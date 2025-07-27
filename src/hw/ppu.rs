@@ -61,6 +61,10 @@ impl PPU {
     pub fn tick(&mut self, cycles: u8) -> bool {
         self.cycles += cycles as usize;
         if self.cycles >= 341 {
+            if self.is_sprite_0_hit(self.cycles) {
+                self.status_register.set_sprite_zero_hit(true);
+            }
+
             self.cycles = self.cycles - 341;
             self.scanline += 1;
 
@@ -82,6 +86,13 @@ impl PPU {
         }
         false
     }
+
+    fn is_sprite_0_hit(&self, cycle: usize) -> bool {
+        let y = self.oam_data[0] as usize;
+        let x = self.oam_data[3] as usize;
+        (y == self.scanline as usize) && x <= cycle && self.mask_register.show_sprites()
+    }
+
     pub(crate) fn write_to_ppu_addr_reg(&mut self, value: u8) {
         self.address_register.update(value);
     }

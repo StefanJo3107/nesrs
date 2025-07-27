@@ -34,6 +34,16 @@ bitflags! {
 impl ControllerRegister {
     pub fn new() -> Self { ControllerRegister::from_bits_truncate(0x00) }
 
+    pub fn nametable_addr(&self) -> u16 {
+        match self.bits() & 0b11 {
+            0 => 0x2000,
+            1 => 0x2400,
+            2 => 0x2800,
+            3 => 0x2c00,
+            _ => panic!("not possible"),
+        }
+    }
+
     pub fn vram_addr_increment(&self) -> u8 {
         if !self.contains(ControllerRegister::VRAM_ADD_INCREMENT) {
             1
