@@ -2,18 +2,20 @@ mod tests;
 
 use crate::hw::cartridge;
 use crate::hw::cartridge::Cartridge;
-use crate::hw::joypad::Joypad;
+use crate::hw::joypad::{Joypad, JoypadButton};
 use crate::hw::memory::Memory;
 use crate::hw::ppu::PPU;
 
 pub struct Bus<'call> {
     cpu_vram: [u8; 2048],
     cartridge: Option<Cartridge>,
-    ppu: PPU,
+    pub(crate) ppu: PPU,
     cycles: usize,
 
-    gameloop_callback: Box<dyn FnMut(&PPU, &mut Joypad) + 'call>,
-    joypad1: Joypad,
+    gameloop_callback: Box<dyn FnMut(&PPU) -> (Option<JoypadButton>, Option<JoypadButton>) + 'call>,
+    pub joypad1: Joypad,
+    key_to_press: Option<JoypadButton>,
+    key_to_release: Option<JoypadButton>,
 }
 
 const RAM_START: u16 = 0x0000;
@@ -26,7 +28,7 @@ const PRG_END: u16 = 0xFFFF;
 impl<'a> Bus<'a> {
     pub fn new<'call, F>(cartridge: Option<Cartridge>, gameloop_callback: F) -> Bus<'call>
     where
-        F: FnMut(&PPU, &mut Joypad) + 'call,
+        F: FnMut(&PPU) -> (Option<JoypadButton>, Option<JoypadButton>) + 'call,
     {
         let ppu = if cartridge.is_some() {
             let c = cartridge.clone().unwrap().clone();
@@ -40,6 +42,8 @@ impl<'a> Bus<'a> {
             cycles: 0,
             gameloop_callback: Box::from(gameloop_callback),
             joypad1: Joypad::new(),
+            key_to_press: None,
+            key_to_release: None,
         }
     }
 
@@ -74,8 +78,36 @@ impl<'a> Bus<'a> {
         let nmi_after = self.ppu.nmi_interrupt.is_some();
 
         if !nmi_before && nmi_after {
-            (self.gameloop_callback)(&self.ppu, &mut self.joypad1);
+            let (key_pressed, key_released) = (self.gameloop_callback)(&self.ppu);
+            if key_pressed.is_some() {
+                self.key_to_press = Some(key_pressed.unwrap());
+            }
+
+            if key_released.is_some() {
+                self.key_to_release = Some(key_released.unwrap());
+            }
+
+            self.handle_key_events();
         }
+    }
+
+    pub fn handle_key_events(&mut self) {
+        if let Some(key_to_press) = self.key_to_press {
+            self.joypad1.set_button_pressed_status(key_to_press, true);
+        } else if let Some(key_to_release) = self.key_to_release {
+            self.joypad1.set_button_pressed_status(key_to_release, false);
+        }
+
+        self.key_to_press = None;
+        self.key_to_release = None;
+    }
+
+    pub fn set_key_to_press(&mut self, key_to_press: JoypadButton) {
+        self.key_to_press = Some(key_to_press);
+    }
+
+    pub fn set_key_to_release(&mut self, key_to_release: JoypadButton) {
+        self.key_to_release = Some(key_to_release);
     }
 }
 
@@ -171,7 +203,7 @@ impl<'a> Memory for Bus<'a> {
             }
             0x8000..=0xFFFF => panic!("Attempt to write to Cartridge ROM space: {:x}", addr),
             _ => {
-                println!("Ignoring mem write-access at {:x}", addr);
+                // println!("Ignoring mem write-access at {:x}", addr);
             }
         }
     }

@@ -47,7 +47,7 @@ pub struct CPU<'a> {
     pub status: CpuFlags,
     pub stack_pointer: u8,
     pub program_counter: u16,
-    bus: Bus<'a>,
+    pub bus: Bus<'a>,
 }
 
 #[derive(Debug, Clone, Copy, Eq, PartialEq)]
@@ -735,7 +735,7 @@ impl<'a> CPU<'a> {
     }
     /* ----------------------------------------- */
 
-    pub fn load_and_run(&mut self) {
+    pub fn reset_and_run(&mut self) {
         self.reset();
         self.run();
     }
@@ -747,7 +747,7 @@ impl<'a> CPU<'a> {
         self.mem_write_u16(0xFFFC, 0x0000);
     }
 
-    fn reset(&mut self) {
+    pub fn reset(&mut self) {
         self.register_a = 0;
         self.register_x = 0;
         self.register_y = 0;
@@ -779,243 +779,250 @@ impl<'a> CPU<'a> {
         F: FnMut(&mut CPU),
     {
         loop {
-            if let Some(_nmi) = self.bus.poll_nmi_status() {
-                self.interrupt(interrupt::NMI);
+            self.step(&mut callback);
+        }
+    }
+
+    pub fn step<F>(&mut self, mut callback: F)
+    where
+        F: FnMut(&mut CPU),
+    {
+        if let Some(_nmi) = self.bus.poll_nmi_status() {
+            self.interrupt(interrupt::NMI);
+        }
+
+        callback(self);
+        let opcode_byte = self.mem_read(self.program_counter);
+        self.program_counter += 1;
+        let old_counter = self.program_counter;
+
+        if let Some(opcode) = OPCODES.get(&opcode_byte) {
+            match opcode.instruction {
+                Instruction::TAX => {
+                    self.tax(opcode.addressing_mode);
+                }
+                Instruction::TAY => {
+                    self.tay(opcode.addressing_mode);
+                }
+                Instruction::TSX => {
+                    self.tsx(opcode.addressing_mode);
+                }
+                Instruction::TXA => {
+                    self.txa(opcode.addressing_mode);
+                }
+                Instruction::TXS => {
+                    self.txs(opcode.addressing_mode);
+                }
+                Instruction::TYA => {
+                    self.tya(opcode.addressing_mode);
+                }
+                Instruction::LDA => {
+                    self.lda(opcode.addressing_mode);
+                }
+                Instruction::LDX => {
+                    self.ldx(opcode.addressing_mode);
+                }
+                Instruction::LDY => {
+                    self.ldy(opcode.addressing_mode);
+                }
+                Instruction::STA => {
+                    self.sta(opcode.addressing_mode);
+                }
+                Instruction::STX => {
+                    self.stx(opcode.addressing_mode);
+                }
+                Instruction::STY => {
+                    self.sty(opcode.addressing_mode);
+                }
+                Instruction::PHA => {
+                    self.pha(opcode.addressing_mode);
+                }
+                Instruction::PHP => {
+                    self.php(opcode.addressing_mode);
+                }
+                Instruction::PLA => {
+                    self.pla(opcode.addressing_mode);
+                }
+                Instruction::PLP => {
+                    self.plp(opcode.addressing_mode);
+                }
+                Instruction::DEC => {
+                    self.dec(opcode.addressing_mode);
+                }
+                Instruction::DEX => {
+                    self.dex(opcode.addressing_mode);
+                }
+                Instruction::DEY => {
+                    self.dey(opcode.addressing_mode);
+                }
+                Instruction::INC => {
+                    self.inc(opcode.addressing_mode);
+                }
+                Instruction::INX => {
+                    self.inx(opcode.addressing_mode);
+                }
+                Instruction::INY => {
+                    self.iny(opcode.addressing_mode);
+                }
+                Instruction::ADC => {
+                    self.adc(opcode.addressing_mode);
+                }
+                Instruction::SBC => {
+                    self.sbc(opcode.addressing_mode);
+                }
+                Instruction::AND => {
+                    self.and(opcode.addressing_mode);
+                }
+                Instruction::EOR => {
+                    self.eor(opcode.addressing_mode);
+                }
+                Instruction::ORA => {
+                    self.ora(opcode.addressing_mode);
+                }
+                Instruction::ASL => {
+                    self.asl(opcode.addressing_mode);
+                }
+                Instruction::ASLA => {
+                    self.asla(opcode.addressing_mode);
+                }
+                Instruction::LSR => {
+                    self.lsr(opcode.addressing_mode);
+                }
+                Instruction::LSRA => {
+                    self.lsra(opcode.addressing_mode);
+                }
+                Instruction::ROL => {
+                    self.rol(opcode.addressing_mode);
+                }
+                Instruction::ROLA => {
+                    self.rola(opcode.addressing_mode);
+                }
+                Instruction::ROR => {
+                    self.ror(opcode.addressing_mode);
+                }
+                Instruction::RORA => {
+                    self.rora(opcode.addressing_mode);
+                }
+                Instruction::CLC => {
+                    self.clc(opcode.addressing_mode);
+                }
+                Instruction::CLD => {
+                    self.cld(opcode.addressing_mode);
+                }
+                Instruction::CLI => {
+                    self.cli(opcode.addressing_mode);
+                }
+                Instruction::CLV => {
+                    self.clv(opcode.addressing_mode);
+                }
+                Instruction::SEC => {
+                    self.sec(opcode.addressing_mode);
+                }
+                Instruction::SED => {
+                    self.sed(opcode.addressing_mode);
+                }
+                Instruction::SEI => {
+                    self.sei(opcode.addressing_mode);
+                }
+                Instruction::CMP => {
+                    self.cmp(opcode.addressing_mode);
+                }
+                Instruction::CPX => {
+                    self.cpx(opcode.addressing_mode);
+                }
+                Instruction::CPY => {
+                    self.cpy(opcode.addressing_mode);
+                }
+                Instruction::BCC => {
+                    self.bcc(opcode.addressing_mode);
+                }
+                Instruction::BCS => {
+                    self.bcs(opcode.addressing_mode);
+                }
+                Instruction::BEQ => {
+                    self.beq(opcode.addressing_mode);
+                }
+                Instruction::BMI => {
+                    self.bmi(opcode.addressing_mode);
+                }
+                Instruction::BNE => {
+                    self.bne(opcode.addressing_mode);
+                }
+                Instruction::BPL => {
+                    self.bpl(opcode.addressing_mode);
+                }
+                Instruction::BVC => {
+                    self.bvc(opcode.addressing_mode);
+                }
+                Instruction::BVS => {
+                    self.bvs(opcode.addressing_mode);
+                }
+                Instruction::JMP => {
+                    self.jmp(opcode.addressing_mode);
+                }
+                Instruction::JSR => {
+                    self.jsr(opcode.addressing_mode);
+                }
+                Instruction::RTS => {
+                    self.rts(opcode.addressing_mode);
+                }
+                Instruction::BRK => {
+                    return;
+                }
+                Instruction::RTI => {
+                    self.rti(opcode.addressing_mode);
+                }
+                Instruction::BIT => {
+                    self.bit(opcode.addressing_mode);
+                }
+                Instruction::NOP | Instruction::DOP | Instruction::TOP => {}
+                Instruction::LAX => {
+                    self.lax(opcode.addressing_mode);
+                }
+                Instruction::AAX => {
+                    self.aax(opcode.addressing_mode);
+                }
+                Instruction::DCP => {
+                    self.dcp(opcode.addressing_mode);
+                }
+                Instruction::ISC => {
+                    self.isc(opcode.addressing_mode);
+                }
+                Instruction::SLO => {
+                    self.slo(opcode.addressing_mode);
+                }
+                Instruction::RLA => {
+                    self.rla(opcode.addressing_mode);
+                }
+                Instruction::SRE => {
+                    self.sre(opcode.addressing_mode);
+                }
+                Instruction::RRA => {
+                    self.rra(opcode.addressing_mode);
+                }
+                Instruction::SBCU => {
+                    self.sbc(opcode.addressing_mode);
+                }
+                Instruction::ANC => {
+                    self.anc(opcode.addressing_mode);
+                }
+                Instruction::ARR => {
+                    self.arr(opcode.addressing_mode);
+                }
+                Instruction::ASR => {
+                    self.asr(opcode.addressing_mode);
+                }
+                Instruction::ATX => {
+                    self.atx(opcode.addressing_mode);
+                }
             }
 
-            callback(self);
-            let opcode_byte = self.mem_read(self.program_counter);
-            self.program_counter += 1;
-            let old_counter = self.program_counter;
-
-            if let Some(opcode) = OPCODES.get(&opcode_byte) {
-                match opcode.instruction {
-                    Instruction::TAX => {
-                        self.tax(opcode.addressing_mode);
-                    }
-                    Instruction::TAY => {
-                        self.tay(opcode.addressing_mode);
-                    }
-                    Instruction::TSX => {
-                        self.tsx(opcode.addressing_mode);
-                    }
-                    Instruction::TXA => {
-                        self.txa(opcode.addressing_mode);
-                    }
-                    Instruction::TXS => {
-                        self.txs(opcode.addressing_mode);
-                    }
-                    Instruction::TYA => {
-                        self.tya(opcode.addressing_mode);
-                    }
-                    Instruction::LDA => {
-                        self.lda(opcode.addressing_mode);
-                    }
-                    Instruction::LDX => {
-                        self.ldx(opcode.addressing_mode);
-                    }
-                    Instruction::LDY => {
-                        self.ldy(opcode.addressing_mode);
-                    }
-                    Instruction::STA => {
-                        self.sta(opcode.addressing_mode);
-                    }
-                    Instruction::STX => {
-                        self.stx(opcode.addressing_mode);
-                    }
-                    Instruction::STY => {
-                        self.sty(opcode.addressing_mode);
-                    }
-                    Instruction::PHA => {
-                        self.pha(opcode.addressing_mode);
-                    }
-                    Instruction::PHP => {
-                        self.php(opcode.addressing_mode);
-                    }
-                    Instruction::PLA => {
-                        self.pla(opcode.addressing_mode);
-                    }
-                    Instruction::PLP => {
-                        self.plp(opcode.addressing_mode);
-                    }
-                    Instruction::DEC => {
-                        self.dec(opcode.addressing_mode);
-                    }
-                    Instruction::DEX => {
-                        self.dex(opcode.addressing_mode);
-                    }
-                    Instruction::DEY => {
-                        self.dey(opcode.addressing_mode);
-                    }
-                    Instruction::INC => {
-                        self.inc(opcode.addressing_mode);
-                    }
-                    Instruction::INX => {
-                        self.inx(opcode.addressing_mode);
-                    }
-                    Instruction::INY => {
-                        self.iny(opcode.addressing_mode);
-                    }
-                    Instruction::ADC => {
-                        self.adc(opcode.addressing_mode);
-                    }
-                    Instruction::SBC => {
-                        self.sbc(opcode.addressing_mode);
-                    }
-                    Instruction::AND => {
-                        self.and(opcode.addressing_mode);
-                    }
-                    Instruction::EOR => {
-                        self.eor(opcode.addressing_mode);
-                    }
-                    Instruction::ORA => {
-                        self.ora(opcode.addressing_mode);
-                    }
-                    Instruction::ASL => {
-                        self.asl(opcode.addressing_mode);
-                    }
-                    Instruction::ASLA => {
-                        self.asla(opcode.addressing_mode);
-                    }
-                    Instruction::LSR => {
-                        self.lsr(opcode.addressing_mode);
-                    }
-                    Instruction::LSRA => {
-                        self.lsra(opcode.addressing_mode);
-                    }
-                    Instruction::ROL => {
-                        self.rol(opcode.addressing_mode);
-                    }
-                    Instruction::ROLA => {
-                        self.rola(opcode.addressing_mode);
-                    }
-                    Instruction::ROR => {
-                        self.ror(opcode.addressing_mode);
-                    }
-                    Instruction::RORA => {
-                        self.rora(opcode.addressing_mode);
-                    }
-                    Instruction::CLC => {
-                        self.clc(opcode.addressing_mode);
-                    }
-                    Instruction::CLD => {
-                        self.cld(opcode.addressing_mode);
-                    }
-                    Instruction::CLI => {
-                        self.cli(opcode.addressing_mode);
-                    }
-                    Instruction::CLV => {
-                        self.clv(opcode.addressing_mode);
-                    }
-                    Instruction::SEC => {
-                        self.sec(opcode.addressing_mode);
-                    }
-                    Instruction::SED => {
-                        self.sed(opcode.addressing_mode);
-                    }
-                    Instruction::SEI => {
-                        self.sei(opcode.addressing_mode);
-                    }
-                    Instruction::CMP => {
-                        self.cmp(opcode.addressing_mode);
-                    }
-                    Instruction::CPX => {
-                        self.cpx(opcode.addressing_mode);
-                    }
-                    Instruction::CPY => {
-                        self.cpy(opcode.addressing_mode);
-                    }
-                    Instruction::BCC => {
-                        self.bcc(opcode.addressing_mode);
-                    }
-                    Instruction::BCS => {
-                        self.bcs(opcode.addressing_mode);
-                    }
-                    Instruction::BEQ => {
-                        self.beq(opcode.addressing_mode);
-                    }
-                    Instruction::BMI => {
-                        self.bmi(opcode.addressing_mode);
-                    }
-                    Instruction::BNE => {
-                        self.bne(opcode.addressing_mode);
-                    }
-                    Instruction::BPL => {
-                        self.bpl(opcode.addressing_mode);
-                    }
-                    Instruction::BVC => {
-                        self.bvc(opcode.addressing_mode);
-                    }
-                    Instruction::BVS => {
-                        self.bvs(opcode.addressing_mode);
-                    }
-                    Instruction::JMP => {
-                        self.jmp(opcode.addressing_mode);
-                    }
-                    Instruction::JSR => {
-                        self.jsr(opcode.addressing_mode);
-                    }
-                    Instruction::RTS => {
-                        self.rts(opcode.addressing_mode);
-                    }
-                    Instruction::BRK => {
-                        return;
-                    }
-                    Instruction::RTI => {
-                        self.rti(opcode.addressing_mode);
-                    }
-                    Instruction::BIT => {
-                        self.bit(opcode.addressing_mode);
-                    }
-                    Instruction::NOP | Instruction::DOP | Instruction::TOP => {}
-                    Instruction::LAX => {
-                        self.lax(opcode.addressing_mode);
-                    }
-                    Instruction::AAX => {
-                        self.aax(opcode.addressing_mode);
-                    }
-                    Instruction::DCP => {
-                        self.dcp(opcode.addressing_mode);
-                    }
-                    Instruction::ISC => {
-                        self.isc(opcode.addressing_mode);
-                    }
-                    Instruction::SLO => {
-                        self.slo(opcode.addressing_mode);
-                    }
-                    Instruction::RLA => {
-                        self.rla(opcode.addressing_mode);
-                    }
-                    Instruction::SRE => {
-                        self.sre(opcode.addressing_mode);
-                    }
-                    Instruction::RRA => {
-                        self.rra(opcode.addressing_mode);
-                    }
-                    Instruction::SBCU => {
-                        self.sbc(opcode.addressing_mode);
-                    }
-                    Instruction::ANC => {
-                        self.anc(opcode.addressing_mode);
-                    }
-                    Instruction::ARR => {
-                        self.arr(opcode.addressing_mode);
-                    }
-                    Instruction::ASR => {
-                        self.asr(opcode.addressing_mode);
-                    }
-                    Instruction::ATX => {
-                        self.atx(opcode.addressing_mode);
-                    }
-                }
-
-                self.bus.tick(opcode.cycles);
-                if old_counter == self.program_counter {
-                    self.program_counter += opcode.bytes - 1;
-                }
-            } else {
-                panic!("Illegal instruction: 0x{:02X}", opcode_byte);
+            self.bus.tick(opcode.cycles);
+            if old_counter == self.program_counter {
+                self.program_counter += opcode.bytes - 1;
             }
+        } else {
+            panic!("Illegal instruction: 0x{:02X}", opcode_byte);
         }
     }
 }
