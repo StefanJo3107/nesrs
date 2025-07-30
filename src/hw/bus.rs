@@ -1,6 +1,5 @@
 mod tests;
 
-use crate::hw::cartridge;
 use crate::hw::cartridge::Cartridge;
 use crate::hw::joypad::{Joypad, JoypadButton};
 use crate::hw::memory::Memory;
@@ -12,7 +11,7 @@ pub struct Bus<'call> {
     pub(crate) ppu: PPU,
     cycles: usize,
 
-    gameloop_callback: Box<dyn FnMut(&PPU) -> (Option<JoypadButton>, Option<JoypadButton>) + 'call>,
+    gameloop_callback: Box<dyn FnMut(&PPU, &mut Joypad) + 'call>,
     pub joypad1: Joypad,
     key_to_press: Option<JoypadButton>,
     key_to_release: Option<JoypadButton>,
@@ -20,7 +19,6 @@ pub struct Bus<'call> {
 
 const RAM_START: u16 = 0x0000;
 const RAM_END: u16 = 0x1FFF;
-const PPU_REG_START: u16 = 0x2000;
 const PPU_REG_END: u16 = 0x3FFF;
 const PRG_START: u16 = 0x8000;
 const PRG_END: u16 = 0xFFFF;
@@ -28,7 +26,7 @@ const PRG_END: u16 = 0xFFFF;
 impl<'a> Bus<'a> {
     pub fn new<'call, F>(cartridge: Option<Cartridge>, gameloop_callback: F) -> Bus<'call>
     where
-        F: FnMut(&PPU) -> (Option<JoypadButton>, Option<JoypadButton>) + 'call,
+        F: FnMut(&PPU, &mut Joypad) + 'call,
     {
         let ppu = if cartridge.is_some() {
             let c = cartridge.clone().unwrap().clone();
@@ -78,15 +76,7 @@ impl<'a> Bus<'a> {
         let nmi_after = self.ppu.nmi_interrupt.is_some();
 
         if !nmi_before && nmi_after {
-            let (key_pressed, key_released) = (self.gameloop_callback)(&self.ppu);
-            if key_pressed.is_some() {
-                self.key_to_press = Some(key_pressed.unwrap());
-            }
-
-            if key_released.is_some() {
-                self.key_to_release = Some(key_released.unwrap());
-            }
-
+            (self.gameloop_callback)(&self.ppu, &mut self.joypad1);
             self.handle_key_events();
         }
     }

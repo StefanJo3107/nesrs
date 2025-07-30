@@ -7,7 +7,6 @@ use std::cmp::PartialEq;
 use bitflags::bitflags;
 use crate::hw::bus::Bus;
 use crate::hw::cpu::opcodes::{Instruction, OPCODES};
-use crate::hw::cpu::tracer::trace;
 use crate::hw::memory::Memory;
 
 bitflags! {
@@ -771,7 +770,7 @@ impl<'a> CPU<'a> {
     }
 
     pub fn run(&mut self) {
-        self.run_with_callback(|cpu| {});
+        self.run_with_callback(|_| {});
     }
 
     pub fn run_with_callback<F>(&mut self, mut callback: F)

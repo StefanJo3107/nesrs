@@ -1,3 +1,4 @@
+#![allow(unreachable_patterns)]
 use std::collections::HashMap;
 use strum_macros::{Display, EnumString};
 use crate::hw::cpu::AddressingMode;

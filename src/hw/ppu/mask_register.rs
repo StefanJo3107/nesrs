@@ -1,5 +1,4 @@
 use bitflags::bitflags;
-use crate::hw::ppu::controller_register::ControllerRegister;
 
 bitflags! {
 

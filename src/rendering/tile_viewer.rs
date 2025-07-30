@@ -5,6 +5,7 @@ use crate::hw::cartridge::Cartridge;
 use crate::rendering::frame::Frame;
 use crate::rendering::palette;
 
+#[allow(dead_code)]
 fn show_tile(chr_rom: &Vec<u8>, bank: usize, tile_n: usize) -> Frame {
     assert!(bank <= 1);
 
