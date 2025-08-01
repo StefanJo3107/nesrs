@@ -2,6 +2,7 @@ use std::cell::RefCell;
 use std::collections::HashMap;
 use std::rc::Rc;
 use std::sync::Arc;
+use std::thread;
 use sdl2::event::Event;
 use sdl2::keyboard::Keycode;
 use sdl2::pixels::PixelFormatEnum;
@@ -10,6 +11,7 @@ use crate::hw::cartridge::Cartridge;
 use crate::hw::cpu::CPU;
 use crate::hw::joypad;
 use crate::hw::joypad::{Joypad, JoypadButton};
+use crate::hw::memory::Memory;
 use crate::hw::ppu::PPU;
 use crate::rendering::frame::Frame;
 use crate::rendering::renderer;
@@ -26,10 +28,9 @@ impl Emulator {
         let window = video_subsystem
             .window("NESRS", (256.0 * 3.0) as u32, (240.0 * 3.0) as u32)
             .position_centered()
-            .build()
-            .unwrap();
+            .build()?;
 
-        let canvas = Rc::new(RefCell::new(window.into_canvas().present_vsync().build().unwrap()));
+        let canvas = Rc::new(RefCell::new(window.into_canvas().build()?));
         let event_pump = Rc::new(RefCell::new(sdl_context.event_pump().unwrap()));
         let canvas_clone = canvas.clone();
         canvas_clone.borrow_mut().set_scale(3.0, 3.0).unwrap();
@@ -130,5 +131,12 @@ impl Emulator {
         let mut frame = Frame::new();
         renderer::render(&cpu_borrow.bus.ppu, &mut frame);
         frame.data
+    }
+
+    pub fn get_value_at_address(&self, address: u16) -> u8 {
+        let cpu_clone = Arc::clone(&self.cpu);
+        let mut cpu_borrow = cpu_clone.borrow_mut();
+        let value = cpu_borrow.mem_read(address);
+        value
     }
 }

@@ -10,6 +10,7 @@ pub enum ServerCommands {
     Step,
     SetKeyEvent,
     GetFrame,
+    GetValueAtAddress,
     Stop,
 }
 
@@ -21,7 +22,8 @@ lazy_static::lazy_static! {
         map.insert(2, ServerCommands::Step);
         map.insert(3, ServerCommands::SetKeyEvent);
         map.insert(4, ServerCommands::GetFrame);
-        map.insert(5, ServerCommands::Stop);
+        map.insert(5, ServerCommands::GetValueAtAddress);
+        map.insert(6, ServerCommands::Stop);
         map
     };
 }
@@ -110,6 +112,12 @@ impl EmulatorServer {
         self.socket.send(&response, 0)
     }
 
+    fn send_value_at_address(&self, value: u8) -> Result<(), zmq::Error> {
+        let mut response = vec![3u8];
+        response.push(value);
+        self.socket.send(&response, 0)
+    }
+
     fn handle_command(&mut self, command_type: u8, payload: Vec<u8>) -> anyhow::Result<()> {
         if let Some(command) = COMMANDS.get(&command_type) {
             match command {
@@ -144,8 +152,8 @@ impl EmulatorServer {
                     }
                 }
                 ServerCommands::SetKeyEvent => {
-                    if payload.len() < 1 {
-                        return Err(SetKeyEventError { msg: String::from("Invalid payload, payload length is smaller than 1") }.into());
+                    if payload.len() < 2 {
+                        return Err(SetKeyEventError { msg: String::from("Invalid payload, payload length is smaller than 2") }.into());
                     }
                     let key_code = payload[0];
                     let key_pressed = payload[1];
@@ -165,6 +173,18 @@ impl EmulatorServer {
                     if let Some(ref emulator) = self.emulator {
                         let frame_data = emulator.get_current_frame();
                         self.send_frame(frame_data).map_err(|e| e)?;
+                    } else {
+                        self.send_error("No ROM loaded").map_err(|e| e)?;
+                    }
+                }
+                ServerCommands::GetValueAtAddress => {
+                    if payload.len() < 2 {
+                        return Err(SetKeyEventError { msg: String::from("Invalid payload, payload length is smaller than 1") }.into());
+                    }
+                    let address = u16::from_le_bytes([payload[0], payload[1]]);
+                    if let Some(ref mut emulator) = self.emulator {
+                        let value = emulator.get_value_at_address(address);
+                        self.send_value_at_address(value).map_err(|e| e)?;
                     } else {
                         self.send_error("No ROM loaded").map_err(|e| e)?;
                     }
@@ -190,8 +210,6 @@ impl EmulatorServer {
                     continue;
                 }
             };
-
-            println!("Received command type: {}", command_type);
 
             if let Err(e) = self.handle_command(command_type, payload) {
                 println!("Error handling command: {}", e);
