@@ -3,17 +3,20 @@ name = "nesrs"
 version = "0.1.0"
 edition = "2021"
 
-[lib]
-name = "nesrs"
-crate-type = ["cdylib"]
+#[lib]
+#name = "nesrs"
+#crate-type = ["cdylib"]
 
 [dependencies]
 lazy_static = "1.5.0"
-bitflags = "2.9.1"
+bitflags = { version = "2.9.1", features = ["serde"] }
 anyhow = "1.0.98"
 thiserror = "2.0.12"
 strum = "0.27.1"
 strum_macros = "0.27.1"
 log = "0.4.27"
 sdl2 = "0.38.0"
-pyo3 = { version = "0.25.1", features = ["extension-module", "abi3-py311", "generate-import-lib"] }
+#pyo3 = { version = "0.25.1", features = ["extension-module", "abi3-py311", "generate-import-lib"] }
+serde = { version = "1.0.219", features = ["derive"] }
+serde-big-array = "0.5.1"
+postcard = { version = "1.1.3", features = ["alloc", "use-std"] }

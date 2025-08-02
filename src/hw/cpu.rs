@@ -5,6 +5,7 @@ mod interrupt;
 
 use std::cmp::PartialEq;
 use bitflags::bitflags;
+use serde::{Deserialize, Serialize};
 use crate::hw::bus::Bus;
 use crate::hw::cpu::opcodes::{Instruction, OPCODES};
 use crate::hw::memory::Memory;
@@ -23,7 +24,7 @@ bitflags! {
     // Z	Zero
     // C	Carry
 
-    #[derive(Clone)]
+    #[derive(Clone, Serialize, Deserialize)]
     pub struct CpuFlags: u8 {
         const CARRY         = 0b00000001;
         const ZERO          = 0b00000010;
@@ -39,6 +40,7 @@ bitflags! {
 const STACK_PAGE: u16 = 0x0100;
 const STACK_START: u8 = 0xfd;
 
+#[derive(Serialize, Deserialize)]
 pub struct CPU<'a> {
     pub register_a: u8,
     pub register_x: u8,

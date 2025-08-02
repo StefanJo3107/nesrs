@@ -1,8 +1,9 @@
 mod tests;
 
+use serde::{Deserialize, Serialize};
 use thiserror::Error;
 
-#[derive(Debug, PartialEq, Clone)]
+#[derive(Debug, PartialEq, Clone, Serialize, Deserialize)]
 pub enum ScreenMirroring {
     Horizontal,
     Vertical,
@@ -22,6 +23,7 @@ pub enum CartridgeError {
     IllegalScreenMirroring,
 }
 
+#[derive(Serialize, Deserialize)]
 #[derive(Debug, Clone)]
 pub struct Cartridge {
     pub prg_rom: Vec<u8>,

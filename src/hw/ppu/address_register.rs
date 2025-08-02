@@ -1,3 +1,6 @@
+use serde::{Deserialize, Serialize};
+
+#[derive(Serialize, Deserialize)]
 pub struct AddressRegister {
     value: (u8, u8), // (hi, lo)
     hi_ptr: bool,
@@ -43,7 +46,7 @@ impl AddressRegister {
             self.set(self.get() & 0b11111111111111); //mirror down addr above 0x3fff
         }
     }
-    
+
     pub fn reset_latch(&mut self) {
         self.hi_ptr = true;
     }

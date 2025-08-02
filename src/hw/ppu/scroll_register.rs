@@ -1,3 +1,6 @@
+use serde::{Deserialize, Serialize};
+
+#[derive(Serialize, Deserialize)]
 pub struct ScrollRegister {
     pub scroll_x: u8,
     pub scroll_y: u8,

@@ -1,20 +1,40 @@
 mod tests;
 
+use serde::{Deserialize, Serialize};
+use serde_big_array::BigArray;
 use crate::hw::cartridge::Cartridge;
 use crate::hw::joypad::{Joypad, JoypadButton};
 use crate::hw::memory::Memory;
 use crate::hw::ppu::PPU;
 
+#[derive(Serialize, Deserialize)]
 pub struct Bus<'call> {
+    #[serde(with = "BigArray")]
     cpu_vram: [u8; 2048],
     cartridge: Option<Cartridge>,
     pub(crate) ppu: PPU,
     cycles: usize,
 
-    gameloop_callback: Box<dyn FnMut(&mut PPU, &mut Joypad) + 'call>,
+    #[serde(skip)]
+    pub gameloop_callback: Option<Box<dyn FnMut(&mut PPU, &mut Joypad) + 'call>>,
     pub joypad1: Joypad,
     keys_to_press: Vec<JoypadButton>,
     keys_to_release: Vec<JoypadButton>,
+}
+
+impl<'call> Default for Bus<'call> {
+    fn default() -> Self {
+        Self {
+            cpu_vram: [0; 2048],
+            cartridge: None,
+            ppu: PPU::new_empty_rom(),
+            cycles: 0,
+            joypad1: Joypad::new(),
+            keys_to_press: vec![],
+            keys_to_release: vec![],
+            gameloop_callback: Some(Box::new(|_, _| {})),
+        }
+    }
 }
 
 const RAM_START: u16 = 0x0000;
@@ -38,7 +58,7 @@ impl<'a> Bus<'a> {
             cartridge,
             ppu,
             cycles: 0,
-            gameloop_callback: Box::from(gameloop_callback),
+            gameloop_callback: Some(Box::from(gameloop_callback)),
             joypad1: Joypad::new(),
             keys_to_press: vec![],
             keys_to_release: vec![],
@@ -76,7 +96,9 @@ impl<'a> Bus<'a> {
         let nmi_after = self.ppu.nmi_interrupt.is_some();
 
         if !nmi_before && nmi_after {
-            (self.gameloop_callback)(&mut self.ppu, &mut self.joypad1);
+            if let Some(ref mut cb) = self.gameloop_callback {
+                cb(&mut self.ppu, &mut self.joypad1);
+            }
             self.handle_key_events();
         }
     }
@@ -85,7 +107,7 @@ impl<'a> Bus<'a> {
         for key in &self.keys_to_release {
             self.joypad1.set_button_pressed_status(key, false);
         }
-        
+
         for key in &self.keys_to_press {
             self.joypad1.set_button_pressed_status(key, true);
         }

@@ -1,4 +1,5 @@
 use bitflags::bitflags;
+use serde::{Deserialize, Serialize};
 
 bitflags! {
 
@@ -14,6 +15,8 @@ bitflags! {
     // ||+------- Emphasize red
     // |+-------- Emphasize green
     // +--------- Emphasize blue
+
+    #[derive(Serialize, Deserialize)]
     pub struct MaskRegister: u8 {
         const GREYSCALE               = 0b00000001;
         const LEFTMOST_8PXL_BACKGROUND  = 0b00000010;

@@ -5,6 +5,7 @@ mod scroll_register;
 mod status_register;
 mod tests;
 
+use serde::{Deserialize, Serialize};
 use crate::hw::cartridge::ScreenMirroring;
 use crate::hw::ppu::address_register::AddressRegister;
 use crate::hw::ppu::controller_register::ControllerRegister;
@@ -12,7 +13,9 @@ use crate::hw::ppu::mask_register::MaskRegister;
 use crate::hw::ppu::scroll_register::ScrollRegister;
 use crate::hw::ppu::status_register::StatusRegister;
 use crate::rendering::frame::Frame;
+use serde_big_array::BigArray;
 
+#[derive(Serialize, Deserialize)]
 pub struct PPU {
     pub chr_rom: Vec<u8>,
     pub mirroring: ScreenMirroring,
@@ -22,9 +25,11 @@ pub struct PPU {
     pub scroll_register: ScrollRegister,
     pub status_register: StatusRegister,
 
+    #[serde(with = "BigArray")]
     pub vram: [u8; 2048],
 
     pub oam_address: u8,
+    #[serde(with = "BigArray")]
     pub oam_data: [u8; 256],
     pub palette_table: [u8; 32],
 

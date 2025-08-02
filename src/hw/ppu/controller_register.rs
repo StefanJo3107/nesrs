@@ -1,4 +1,5 @@
 use bitflags::bitflags;
+use serde::{Deserialize, Serialize};
 
 bitflags! {
 
@@ -19,6 +20,7 @@ bitflags! {
    // +--------- Generate an NMI at the start of the
    //            vertical blanking interval (0: off; 1: on)
 
+    #[derive(Serialize, Deserialize)]
     pub struct ControllerRegister: u8 {
         const NAMETABLE1               = 0b0000_0001;
         const NAMETABLE2               = 0b0000_0010;
