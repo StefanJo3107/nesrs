@@ -1,4 +1,5 @@
 use bitflags::bitflags;
+use pyo3::pyclass;
 
 bitflags! {
        // https://wiki.nesdev.com/w/index.php/Controller_reading_code
@@ -48,7 +49,7 @@ impl Joypad {
         response
     }
 
-    pub fn set_button_pressed_status(&mut self, button: JoypadButton, pressed: bool) {
-        self.button_status.set(button, pressed);
+    pub fn set_button_pressed_status(&mut self, button: &JoypadButton, pressed: bool) {
+        self.button_status.set(button.clone(), pressed);
     }
 }

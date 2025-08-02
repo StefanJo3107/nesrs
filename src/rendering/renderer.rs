@@ -181,7 +181,7 @@ pub fn render_sprites(ppu: &PPU, frame: &mut Frame) {
     }
 }
 
-pub fn render(ppu: &PPU, frame: &mut Frame) {
+pub fn render(ppu: &mut PPU, frame: &mut Frame) {
     render_bg(ppu, frame);
     render_sprites(ppu, frame);
 }

@@ -11,10 +11,10 @@ pub struct Bus<'call> {
     pub(crate) ppu: PPU,
     cycles: usize,
 
-    gameloop_callback: Box<dyn FnMut(&PPU, &mut Joypad) + 'call>,
+    gameloop_callback: Box<dyn FnMut(&mut PPU, &mut Joypad) + 'call>,
     pub joypad1: Joypad,
-    key_to_press: Option<JoypadButton>,
-    key_to_release: Option<JoypadButton>,
+    keys_to_press: Vec<JoypadButton>,
+    keys_to_release: Vec<JoypadButton>,
 }
 
 const RAM_START: u16 = 0x0000;
@@ -26,7 +26,7 @@ const PRG_END: u16 = 0xFFFF;
 impl<'a> Bus<'a> {
     pub fn new<'call, F>(cartridge: Option<Cartridge>, gameloop_callback: F) -> Bus<'call>
     where
-        F: FnMut(&PPU, &mut Joypad) + 'call,
+        F: FnMut(&mut PPU, &mut Joypad) + 'call,
     {
         let ppu = if cartridge.is_some() {
             let c = cartridge.clone().unwrap().clone();
@@ -40,8 +40,8 @@ impl<'a> Bus<'a> {
             cycles: 0,
             gameloop_callback: Box::from(gameloop_callback),
             joypad1: Joypad::new(),
-            key_to_press: None,
-            key_to_release: None,
+            keys_to_press: vec![],
+            keys_to_release: vec![],
         }
     }
 
@@ -76,28 +76,30 @@ impl<'a> Bus<'a> {
         let nmi_after = self.ppu.nmi_interrupt.is_some();
 
         if !nmi_before && nmi_after {
-            (self.gameloop_callback)(&self.ppu, &mut self.joypad1);
+            (self.gameloop_callback)(&mut self.ppu, &mut self.joypad1);
             self.handle_key_events();
         }
     }
 
     pub fn handle_key_events(&mut self) {
-        if let Some(key_to_press) = self.key_to_press {
-            self.joypad1.set_button_pressed_status(key_to_press, true);
-        } else if let Some(key_to_release) = self.key_to_release {
-            self.joypad1.set_button_pressed_status(key_to_release, false);
+        for key in &self.keys_to_release {
+            self.joypad1.set_button_pressed_status(key, false);
+        }
+        
+        for key in &self.keys_to_press {
+            self.joypad1.set_button_pressed_status(key, true);
         }
 
-        self.key_to_press = None;
-        self.key_to_release = None;
+        self.keys_to_press = vec![];
+        self.keys_to_release = vec![];
     }
 
     pub fn set_key_to_press(&mut self, key_to_press: JoypadButton) {
-        self.key_to_press = Some(key_to_press);
+        self.keys_to_press.push(key_to_press);
     }
 
     pub fn set_key_to_release(&mut self, key_to_release: JoypadButton) {
-        self.key_to_release = Some(key_to_release);
+        self.keys_to_release.push(key_to_release);
     }
 }
 

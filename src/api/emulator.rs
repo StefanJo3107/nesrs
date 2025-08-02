@@ -2,7 +2,8 @@ use std::cell::RefCell;
 use std::collections::HashMap;
 use std::rc::Rc;
 use std::sync::Arc;
-use std::thread;
+use pyo3::{pyclass, pymethods, pymodule, PyResult, Python};
+use pyo3::types::{PyAnyMethods, PyModule};
 use sdl2::event::Event;
 use sdl2::keyboard::Keycode;
 use sdl2::pixels::PixelFormatEnum;
@@ -16,30 +17,31 @@ use crate::hw::ppu::PPU;
 use crate::rendering::frame::Frame;
 use crate::rendering::renderer;
 
+#[pyclass(unsendable)]
 pub struct Emulator {
     cpu: Arc<RefCell<CPU<'static>>>,
 }
 
+#[pymethods]
 impl Emulator {
-    pub fn new(cartridge_path: &str, keyboard_input: bool) -> anyhow::Result<Self> {
+    #[new]
+    pub fn new(cartridge_path: &str, keyboard_input: bool) -> PyResult<Self> {
         // init sdl2
         let sdl_context = sdl2::init().unwrap();
         let video_subsystem = sdl_context.video().unwrap();
         let window = video_subsystem
             .window("NESRS", (256.0 * 3.0) as u32, (240.0 * 3.0) as u32)
             .position_centered()
-            .build()?;
+            .build().unwrap();
 
-        let canvas = Rc::new(RefCell::new(window.into_canvas().build()?));
+        let canvas = Rc::new(RefCell::new(window.into_canvas().build().unwrap()));
         let event_pump = Rc::new(RefCell::new(sdl_context.event_pump().unwrap()));
         let canvas_clone = canvas.clone();
         canvas_clone.borrow_mut().set_scale(3.0, 3.0).unwrap();
 
 
-        let bytes: Vec<u8> = std::fs::read(cartridge_path)?;
-        let crt = Cartridge::new(bytes)?;
-
-        let frame = Rc::new(RefCell::new(Frame::new()));
+        let bytes: Vec<u8> = std::fs::read(cartridge_path).unwrap();
+        let crt = Cartridge::new(bytes).unwrap();
 
         // init joypad
         let mut key_map = HashMap::new();
@@ -53,9 +55,8 @@ impl Emulator {
         key_map.insert(Keycode::S, joypad::JoypadButton::BUTTON_B);
 
         // the game cycle
-        let bus = Bus::new(Some(crt), move |ppu: &PPU, joypad: &mut Joypad| {
-            let frame_clone = frame.clone();
-            let mut frame_mut = frame_clone.borrow_mut();
+        let bus = Bus::new(Some(crt), move |ppu: &mut PPU, joypad: &mut Joypad| {
+            let mut frame = Frame::new();
             let canvas_clone = canvas.clone();
             let mut canvas_mut = canvas_clone.borrow_mut();
             let event_pump_clone = event_pump.clone();
@@ -65,9 +66,9 @@ impl Emulator {
                 .create_texture_target(PixelFormatEnum::RGB24, 256, 240)
                 .unwrap();
 
-            renderer::render(ppu, &mut frame_mut);
-            texture.update(None, &frame_mut.data, 256 * 3).unwrap();
-
+            renderer::render(ppu, &mut frame);
+            texture.update(None, &frame.data, 256 * 3).unwrap();
+            ppu.current_frame = frame;
             canvas_mut.copy(&texture, None, None).unwrap();
 
             canvas_mut.present();
@@ -82,12 +83,12 @@ impl Emulator {
                         } => std::process::exit(0),
                         Event::KeyDown { keycode, .. } => {
                             if let Some(key) = key_map.get(&keycode.unwrap_or(Keycode::Ampersand)) {
-                                joypad.set_button_pressed_status(*key, true);
+                                joypad.set_button_pressed_status(key, true);
                             }
                         }
                         Event::KeyUp { keycode, .. } => {
                             if let Some(key) = key_map.get(&keycode.unwrap_or(Keycode::Ampersand)) {
-                                joypad.set_button_pressed_status(*key, false);
+                                joypad.set_button_pressed_status(key, false);
                             }
                         }
 
@@ -103,13 +104,15 @@ impl Emulator {
         })
     }
 
-    pub fn set_key_event(&mut self, key: JoypadButton, pressed: bool) {
+    pub fn set_key_event(&mut self, key: u8, pressed: bool) {
         let cpu_clone = Arc::clone(&self.cpu);
         let mut cpu_borrow = cpu_clone.borrow_mut();
         if pressed {
-            cpu_borrow.bus.set_key_to_press(key);
+            let button = JoypadButton::from_bits(key).unwrap_or(JoypadButton::UP);
+            cpu_borrow.bus.set_key_to_press(button);
         } else {
-            cpu_borrow.bus.set_key_to_release(key);
+            let button = JoypadButton::from_bits(key).unwrap_or(JoypadButton::UP);
+            cpu_borrow.bus.set_key_to_release(button);
         }
     }
 
@@ -128,9 +131,8 @@ impl Emulator {
     pub fn get_current_frame(&self) -> Vec<u8> {
         let cpu_clone = Arc::clone(&self.cpu);
         let cpu_borrow = cpu_clone.borrow_mut();
-        let mut frame = Frame::new();
-        renderer::render(&cpu_borrow.bus.ppu, &mut frame);
-        frame.data
+        let data = &cpu_borrow.bus.ppu.current_frame.data;
+        data.clone()
     }
 
     pub fn get_value_at_address(&self, address: u16) -> u8 {

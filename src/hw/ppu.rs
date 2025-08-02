@@ -11,6 +11,7 @@ use crate::hw::ppu::controller_register::ControllerRegister;
 use crate::hw::ppu::mask_register::MaskRegister;
 use crate::hw::ppu::scroll_register::ScrollRegister;
 use crate::hw::ppu::status_register::StatusRegister;
+use crate::rendering::frame::Frame;
 
 pub struct PPU {
     pub chr_rom: Vec<u8>,
@@ -32,6 +33,7 @@ pub struct PPU {
     scanline: u16,
     cycles: usize,
     pub nmi_interrupt: Option<u8>,
+    pub current_frame: Frame,
 }
 
 impl PPU {
@@ -56,6 +58,7 @@ impl PPU {
             scanline: 0,
             cycles: 0,
             nmi_interrupt: None,
+            current_frame: Frame::new(),
         }
     }
     pub fn tick(&mut self, cycles: u8) -> bool {
