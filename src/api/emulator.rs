@@ -6,16 +6,14 @@ use std::path::Path;
 use std::rc::Rc;
 use std::sync::Arc;
 use postcard::to_stdvec;
-// use pyo3::{pyclass, pymethods, pymodule, PyResult, Python};
-// use pyo3::types::{PyAnyMethods, PyModule};
+use pyo3::{pyclass, pymethods};
+use pyo3::types::PyAnyMethods;
 use sdl2::event::Event;
 use sdl2::keyboard::Keycode;
 use sdl2::pixels::PixelFormatEnum;
-use serde::{Deserialize, Serialize};
 use crate::hw::bus::Bus;
 use crate::hw::cartridge::Cartridge;
 use crate::hw::cpu::CPU;
-use crate::hw::joypad;
 use crate::hw::joypad::{Joypad, JoypadButton};
 use crate::hw::memory::Memory;
 use crate::hw::ppu::PPU;
@@ -29,11 +27,12 @@ pub enum LoadFormat {
     Unknown,
 }
 
+#[pyclass(unsendable)]
 pub enum EmulatorTrigger {
     MemEquals { addr: u16, value: u8 },
 }
 
-// #[pyclass(unsendable)]
+#[pyclass(unsendable)]
 pub struct Emulator {
     cpu: Arc<RefCell<CPU<'static>>>,
     triggers: Vec<EmulatorTrigger>,
@@ -41,9 +40,64 @@ pub struct Emulator {
     cartridge_path: String,
 }
 
-// #[pymethods]
+#[pymethods]
 impl Emulator {
-    // #[new]
+    #[new]
+    pub fn new_trigerless(cartridge_path: &str, keyboard_input: bool) -> Self {
+        Emulator::new(cartridge_path, keyboard_input, vec![]).unwrap()
+    }
+
+    pub fn set_key_event(&mut self, key: u8, pressed: bool) {
+        let cpu_clone = Arc::clone(&self.cpu);
+        let mut cpu_borrow = cpu_clone.borrow_mut();
+        if pressed {
+            let button = JoypadButton::from_bits(key).unwrap_or(JoypadButton::UP);
+            cpu_borrow.bus.set_key_to_press(button);
+        } else {
+            let button = JoypadButton::from_bits(key).unwrap_or(JoypadButton::UP);
+            cpu_borrow.bus.set_key_to_release(button);
+        }
+    }
+
+    pub fn reset_cpu(&mut self) {
+        let cpu_clone = Arc::clone(&self.cpu);
+        let mut cpu_borrow = cpu_clone.borrow_mut();
+        if self.load_format == LoadFormat::NES {
+            cpu_borrow.reset();
+        } else {
+            let callback = cpu_borrow.bus.gameloop_callback.take();
+            let bytes: Vec<u8> = std::fs::read(self.cartridge_path.as_str()).unwrap();
+            let mut cpu = Emulator::deserialize_cpu(bytes);
+            cpu.bus.gameloop_callback = callback;
+            self.cpu = Arc::new(RefCell::new(cpu));
+            self.set_key_event(JoypadButton::START.bits(), false);
+        }
+    }
+
+    // returns true if breakpoint is hit
+    pub fn step_emulation(&mut self) -> bool {
+        let cpu_clone = Arc::clone(&self.cpu);
+        let mut cpu_borrow = cpu_clone.borrow_mut();
+        cpu_borrow.step(|_| {});
+        self.check_triggers(&mut *cpu_borrow)
+    }
+
+    pub fn get_current_frame(&self) -> Vec<u8> {
+        let cpu_clone = Arc::clone(&self.cpu);
+        let cpu_borrow = cpu_clone.borrow_mut();
+        let data = &cpu_borrow.bus.ppu.current_frame.data;
+        data.clone()
+    }
+
+    pub fn get_value_at_address(&self, address: u16) -> u8 {
+        let cpu_clone = Arc::clone(&self.cpu);
+        let mut cpu_borrow = cpu_clone.borrow_mut();
+        let value = cpu_borrow.mem_read(address);
+        value
+    }
+}
+
+impl Emulator {
     pub fn new(cartridge_path: &str, keyboard_input: bool, triggers: Vec<EmulatorTrigger>) -> anyhow::Result<Self> {
         // init sdl2
         let sdl_context = sdl2::init().unwrap();
@@ -51,23 +105,23 @@ impl Emulator {
         let window = video_subsystem
             .window("NESRS", (256.0 * 3.0) as u32, (240.0 * 3.0) as u32)
             .position_centered()
-            .build().unwrap();
+            .build()?;
 
-        let canvas = Rc::new(RefCell::new(window.into_canvas().build().unwrap()));
+        let canvas = Rc::new(RefCell::new(window.into_canvas().build()?));
         let event_pump = Rc::new(RefCell::new(sdl_context.event_pump().unwrap()));
         let canvas_clone = canvas.clone();
         canvas_clone.borrow_mut().set_scale(3.0, 3.0).unwrap();
 
         // init joypad
         let mut key_map = HashMap::new();
-        key_map.insert(Keycode::Down, joypad::JoypadButton::DOWN);
-        key_map.insert(Keycode::UP, joypad::JoypadButton::UP);
-        key_map.insert(Keycode::Right, joypad::JoypadButton::RIGHT);
-        key_map.insert(Keycode::Left, joypad::JoypadButton::LEFT);
-        key_map.insert(Keycode::Space, joypad::JoypadButton::SELECT);
-        key_map.insert(Keycode::Return, joypad::JoypadButton::START);
-        key_map.insert(Keycode::A, joypad::JoypadButton::BUTTON_A);
-        key_map.insert(Keycode::S, joypad::JoypadButton::BUTTON_B);
+        key_map.insert(Keycode::Down, JoypadButton::DOWN);
+        key_map.insert(Keycode::Up, JoypadButton::UP);
+        key_map.insert(Keycode::Right, JoypadButton::RIGHT);
+        key_map.insert(Keycode::Left, JoypadButton::LEFT);
+        key_map.insert(Keycode::Space, JoypadButton::SELECT);
+        key_map.insert(Keycode::Return, JoypadButton::START);
+        key_map.insert(Keycode::A, JoypadButton::BUTTON_A);
+        key_map.insert(Keycode::S, JoypadButton::BUTTON_B);
 
 
         let path = Path::new(cartridge_path);
@@ -88,10 +142,10 @@ impl Emulator {
         }
 
 
-        let bytes: Vec<u8> = std::fs::read(cartridge_path).unwrap();
+        let bytes: Vec<u8> = std::fs::read(cartridge_path)?;
 
         if load_format == LoadFormat::NES {
-            let crt = Cartridge::new(bytes).unwrap();
+            let crt = Cartridge::new(bytes)?;
 
             // the game cycle
             let bus = Bus::new(Some(crt), move |ppu: &mut PPU, joypad: &mut Joypad| {
@@ -192,61 +246,6 @@ impl Emulator {
         }
     }
 
-    pub fn set_key_event(&mut self, key: u8, pressed: bool) {
-        let cpu_clone = Arc::clone(&self.cpu);
-        let mut cpu_borrow = cpu_clone.borrow_mut();
-        if pressed {
-            let button = JoypadButton::from_bits(key).unwrap_or(JoypadButton::UP);
-            cpu_borrow.bus.set_key_to_press(button);
-        } else {
-            let button = JoypadButton::from_bits(key).unwrap_or(JoypadButton::UP);
-            cpu_borrow.bus.set_key_to_release(button);
-        }
-    }
-
-    pub fn reset_cpu(&mut self) {
-        let cpu_clone = Arc::clone(&self.cpu);
-        let mut cpu_borrow = cpu_clone.borrow_mut();
-        if self.load_format == LoadFormat::NES {
-            cpu_borrow.reset();
-        } else {
-            let callback = cpu_borrow.bus.gameloop_callback.take();
-            let bytes: Vec<u8> = std::fs::read(self.cartridge_path.as_str()).unwrap();
-            let mut cpu = Emulator::deserialize_cpu(bytes);
-            cpu.bus.gameloop_callback = callback;
-            self.cpu = Arc::new(RefCell::new(cpu));
-            self.set_key_event(JoypadButton::START.bits(), false);
-        }
-    }
-
-    // returns true if breakpoint is hit
-    pub fn step_emulation(&mut self) -> bool {
-        let cpu_clone = Arc::clone(&self.cpu);
-        let mut cpu_borrow = cpu_clone.borrow_mut();
-        cpu_borrow.step(|_| {});
-        self.check_triggers(&mut *cpu_borrow)
-    }
-
-    pub fn get_current_frame(&self) -> Vec<u8> {
-        let cpu_clone = Arc::clone(&self.cpu);
-        let cpu_borrow = cpu_clone.borrow_mut();
-        let data = &cpu_borrow.bus.ppu.current_frame.data;
-        data.clone()
-    }
-
-    pub fn get_value_at_address(&self, address: u16) -> u8 {
-        let cpu_clone = Arc::clone(&self.cpu);
-        let mut cpu_borrow = cpu_clone.borrow_mut();
-        let value = cpu_borrow.mem_read(address);
-        value
-    }
-
-    fn check_triggers(&self, cpu: &mut CPU) -> bool {
-        self.triggers.iter().any(|trigger| match trigger {
-            EmulatorTrigger::MemEquals { addr, value } => cpu.mem_read(*addr) == *value
-        })
-    }
-
     pub fn take_cpu_snapshot(&self, path: &str) -> Result<(), Box<dyn std::error::Error>> {
         let cpu_clone = Arc::clone(&self.cpu);
         let cpu_borrow = cpu_clone.borrow_mut();
@@ -257,9 +256,15 @@ impl Emulator {
         Ok(())
     }
 
-    pub fn deserialize_cpu(data: Vec<u8>) -> CPU<'static> {
+    fn deserialize_cpu(data: Vec<u8>) -> CPU<'static> {
         let mut new_cpu: CPU = postcard::from_bytes(data.as_slice())
             .expect("Failed to deserialize cpu");
         new_cpu
+    }
+
+    fn check_triggers(&self, cpu: &mut CPU) -> bool {
+        self.triggers.iter().any(|trigger| match trigger {
+            EmulatorTrigger::MemEquals { addr, value } => cpu.mem_read(*addr) == *value
+        })
     }
 }
