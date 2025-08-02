@@ -6,8 +6,6 @@ use std::path::Path;
 use std::rc::Rc;
 use std::sync::Arc;
 use postcard::to_stdvec;
-use pyo3::{pyclass, pymethods};
-use pyo3::types::PyAnyMethods;
 use sdl2::event::Event;
 use sdl2::keyboard::Keycode;
 use sdl2::pixels::PixelFormatEnum;
@@ -27,12 +25,10 @@ pub enum LoadFormat {
     Unknown,
 }
 
-#[pyclass(unsendable)]
 pub enum EmulatorTrigger {
     MemEquals { addr: u16, value: u8 },
 }
 
-#[pyclass(unsendable)]
 pub struct Emulator {
     cpu: Arc<RefCell<CPU<'static>>>,
     triggers: Vec<EmulatorTrigger>,
@@ -40,9 +36,7 @@ pub struct Emulator {
     cartridge_path: String,
 }
 
-#[pymethods]
 impl Emulator {
-    #[new]
     pub fn new_trigerless(cartridge_path: &str, keyboard_input: bool) -> Self {
         Emulator::new(cartridge_path, keyboard_input, vec![]).unwrap()
     }
