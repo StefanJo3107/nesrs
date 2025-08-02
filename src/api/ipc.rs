@@ -1,10 +1,15 @@
 use std::collections::HashMap;
+use std::fs::OpenOptions;
+use std::thread;
+use std::time::Duration;
+use memmap2::{MmapMut, MmapOptions};
 use thiserror::Error;
 use crate::api::emulator::Emulator;
 use crate::api::ipc::EmulatorServerError::{ParseCommandError, SetKeyEventError};
 use crate::hw::joypad::JoypadButton;
 
 pub enum ServerCommands {
+    Noop,
     LoadCartridge,
     Reset,
     Step,
@@ -14,18 +19,19 @@ pub enum ServerCommands {
     Stop,
 }
 
-lazy_static::lazy_static! {
-    pub static ref COMMANDS: HashMap<u8, ServerCommands> = {
-        let mut map = HashMap::new();
-        map.insert(0, ServerCommands::LoadCartridge);
-        map.insert(1, ServerCommands::Reset);
-        map.insert(2, ServerCommands::Step);
-        map.insert(3, ServerCommands::SetKeyEvent);
-        map.insert(4, ServerCommands::GetFrame);
-        map.insert(5, ServerCommands::GetValueAtAddress);
-        map.insert(6, ServerCommands::Stop);
-        map
-    };
+impl From<u8> for ServerCommands {
+    fn from(value: u8) -> Self {
+        match value {
+            0 => ServerCommands::LoadCartridge,
+            1 => ServerCommands::Reset,
+            2 => ServerCommands::Step,
+            3 => ServerCommands::SetKeyEvent,
+            4 => ServerCommands::GetFrame,
+            5 => ServerCommands::GetValueAtAddress,
+            6 => ServerCommands::Stop,
+            _ => ServerCommands::Noop,
+        }
+    }
 }
 
 #[derive(Error, Debug)]
@@ -46,26 +52,120 @@ pub enum EmulatorServerError {
     SetKeyEventError {
         msg: String
     },
+    #[error("Memory mapping error: {msg:?}")]
+    MemoryMappingError {
+        msg: String
+    },
 }
+
+const COMMAND_FILE_SIZE: usize = 1024;
+const STATE_FILE_SIZE: usize = 8192;
+const FRAME_FILE_SIZE: usize = 256 * 240 * 3;
 
 pub struct EmulatorServer {
     emulator: Option<Emulator>,
-    socket: zmq::Socket,
+
+    command_mmap: MmapMut,
+    state_mmap: MmapMut,
+    frame_mmap: MmapMut,
 }
-
 impl EmulatorServer {
-    pub fn new(port: &str) -> anyhow::Result<Self> {
-        let context = zmq::Context::new();
-        let socket = context.socket(zmq::REP)?;
-        let addr = format!("tcp://127.0.0.1:{}", port);
-        socket.bind(&addr)?;
+    pub fn new(
+        command_file: &str,
+        state_file: &str,
+        frame_file: &str,
+    ) -> Result<Self, EmulatorServerError> {
 
-        println!("NES Emulator server listening on {}", addr);
+        // Create and setup command file
+        let command_mmap = Self::create_memory_map(command_file, COMMAND_FILE_SIZE)?;
+
+        // Create and setup state file
+        let state_mmap = Self::create_memory_map(state_file, STATE_FILE_SIZE)?;
+
+        // Create and setup frame file
+        let frame_mmap = Self::create_memory_map(frame_file, FRAME_FILE_SIZE)?;
+
+        println!("Shared memory files created:");
+        println!("  Commands: {}", command_file);
+        println!("  State: {}", state_file);
+        println!("  Frame: {}", frame_file);
 
         Ok(EmulatorServer {
             emulator: None,
-            socket,
+            command_mmap,
+            state_mmap,
+            frame_mmap,
         })
+    }
+
+    fn create_memory_map(filename: &str, size: usize) -> Result<MmapMut, EmulatorServerError> {
+        let mut file = OpenOptions::new()
+            .create(true)
+            .read(true)
+            .write(true)
+            .truncate(true)
+            .open(filename)
+            .map_err(|e| EmulatorServerError::MemoryMappingError {
+                msg: format!("Failed to create file {}: {}", filename, e)
+            })?;
+
+        file.set_len(size as u64)
+            .map_err(|e| EmulatorServerError::MemoryMappingError {
+                msg: format!("Failed to set file size: {}", e)
+            })?;
+
+        let mmap = unsafe {
+            MmapOptions::new()
+                .map_mut(&file)
+                .map_err(|e| EmulatorServerError::MemoryMappingError {
+                    msg: format!("Failed to create memory map: {}", e)
+                })?
+        };
+
+        Ok(mmap)
+    }
+
+    fn read_command(&mut self) -> Option<(ServerCommands, Vec<u8>)> {
+        let signal_byte = self.command_mmap[COMMAND_FILE_SIZE - 1];
+        if signal_byte == 0 {
+            return None;
+        }
+
+        let command_type = ServerCommands::from(self.command_mmap[0]);
+        let payload_len = u32::from_le_bytes([
+            self.command_mmap[1],
+            self.command_mmap[2],
+            self.command_mmap[3],
+            self.command_mmap[4],
+        ]) as usize;
+
+
+        let payload = if payload_len > 0 && payload_len < COMMAND_FILE_SIZE - 10 {
+            self.command_mmap[5..5 + payload_len].to_vec()
+        } else {
+            Vec::new()
+        };
+
+        // set signal byte to 0 to mark command as read
+        self.command_mmap[COMMAND_FILE_SIZE - 1] = 0;
+
+        Some((command_type, payload))
+    }
+
+    fn update_frame(&mut self) {
+        if let Some(ref emulator) = self.emulator {
+            let frame_data = emulator.get_current_frame();
+            if frame_data.len() == FRAME_FILE_SIZE {
+                self.frame_mmap[..FRAME_FILE_SIZE].copy_from_slice(&frame_data);
+            }
+        }
+    }
+
+    fn write_memory_value_response(&mut self, address: u16, value: u8) {
+        self.state_mmap[0..2]
+            .copy_from_slice(&address.to_le_bytes());
+
+        self.state_mmap[2] = value;
     }
 
     fn code_to_button(key: u8) -> Option<JoypadButton> {
@@ -82,143 +182,109 @@ impl EmulatorServer {
         }
     }
 
-    fn parse_command(&self, data: &[u8]) -> anyhow::Result<(u8, Vec<u8>)> {
-        if data.is_empty() {
-            return Err(ParseCommandError { msg: String::from("Empty command") }.into());
-        }
-
-        let command_type = data[0];
-        let payload = data[1..].to_vec();
-        Ok((command_type, payload))
-    }
-
-    fn send_success(&self) -> zmq::Result<()> {
-        let response = vec![0u8];
-        self.socket.send(&response, 0)
-    }
-
-    fn send_error(&self, message: &str) -> zmq::Result<()> {
-        let mut response = vec![1u8];
-        let msg_bytes = message.as_bytes();
-        response.extend_from_slice(&(msg_bytes.len() as u32).to_le_bytes());
-        response.extend_from_slice(msg_bytes);
-        self.socket.send(&response, 0)
-    }
-
-    fn send_frame(&self, frame_data: Vec<u8>) -> Result<(), zmq::Error> {
-        let mut response = vec![2u8];
-        response.extend_from_slice(&(frame_data.len() as u32).to_le_bytes());
-        response.extend_from_slice(&frame_data);
-        self.socket.send(&response, 0)
-    }
-
-    fn send_value_at_address(&self, value: u8) -> Result<(), zmq::Error> {
-        let mut response = vec![3u8];
-        response.push(value);
-        self.socket.send(&response, 0)
-    }
-
-    fn handle_command(&mut self, command_type: u8, payload: Vec<u8>) -> anyhow::Result<()> {
-        if let Some(command) = COMMANDS.get(&command_type) {
-            match command {
-                ServerCommands::LoadCartridge => {
-                    if payload.len() < 4 {
-                        return Err(EmulatorServerError::LoadCartridgeError { msg: String::from("Invalid payload, payload length is smaller than 4") }.into());
-                    }
-                    let path_len = u32::from_le_bytes([payload[0], payload[1], payload[2], payload[3]]) as usize;
-                    if payload.len() < 4 + path_len {
-                        return Err(EmulatorServerError::LoadCartridgeError { msg: String::from("Invalid payload, payload length is incorrect") }.into());
-                    }
-                    let path = String::from_utf8(payload[4..4 + path_len].to_vec())
-                        .map_err(|_| EmulatorServerError::LoadCartridgeError { msg: String::from("Invalid UTF-8 in ROM path") })?;
-
-                    self.emulator = Some(Emulator::new(&path, false)?);
-                    self.send_success().map_err(|e| e)?;
+    fn handle_command(&mut self, command: ServerCommands, payload: Vec<u8>) -> Result<(), EmulatorServerError> {
+        match command {
+            ServerCommands::LoadCartridge => {
+                if payload.len() < 4 {
+                    return Err(EmulatorServerError::LoadCartridgeError {
+                        msg: "Invalid payload length".to_string()
+                    });
                 }
-                ServerCommands::Reset => {
-                    if let Some(ref mut emulator) = self.emulator {
-                        emulator.reset_cpu();
-                        self.send_success().map_err(|e| e)?;
-                    } else {
-                        self.send_error("No ROM loaded").map_err(|e| e)?;
-                    }
-                }
-                ServerCommands::Step => {
-                    if let Some(ref mut emulator) = self.emulator {
-                        emulator.step_emulation();
-                        self.send_success().map_err(|e| e)?;
-                    } else {
-                        self.send_error("No ROM loaded").map_err(|e| e)?;
-                    }
-                }
-                ServerCommands::SetKeyEvent => {
-                    if payload.len() < 2 {
-                        return Err(SetKeyEventError { msg: String::from("Invalid payload, payload length is smaller than 2") }.into());
-                    }
-                    let key_code = payload[0];
-                    let key_pressed = payload[1];
 
-                    if let Some(ref mut emulator) = self.emulator {
-                        if let Some(joypad_key) = EmulatorServer::code_to_button(key_code) {
-                            emulator.set_key_event(joypad_key, key_pressed != 0);
-                            self.send_success().map_err(|e| e)?;
-                        } else {
-                            self.send_error(&format!("Invalid key: {}", key_code)).map_err(|e| e)?;
-                        }
-                    } else {
-                        self.send_error("No ROM loaded").map_err(|e| e)?;
-                    }
+                let path_len = u32::from_le_bytes([payload[0], payload[1], payload[2], payload[3]]) as usize;
+                if payload.len() < 4 + path_len {
+                    return Err(EmulatorServerError::LoadCartridgeError {
+                        msg: "Invalid payload format".to_string()
+                    });
                 }
-                ServerCommands::GetFrame => {
-                    if let Some(ref emulator) = self.emulator {
-                        let frame_data = emulator.get_current_frame();
-                        self.send_frame(frame_data).map_err(|e| e)?;
-                    } else {
-                        self.send_error("No ROM loaded").map_err(|e| e)?;
-                    }
-                }
-                ServerCommands::GetValueAtAddress => {
-                    if payload.len() < 2 {
-                        return Err(SetKeyEventError { msg: String::from("Invalid payload, payload length is smaller than 1") }.into());
-                    }
-                    let address = u16::from_le_bytes([payload[0], payload[1]]);
-                    if let Some(ref mut emulator) = self.emulator {
-                        let value = emulator.get_value_at_address(address);
-                        self.send_value_at_address(value).map_err(|e| e)?;
-                    } else {
-                        self.send_error("No ROM loaded").map_err(|e| e)?;
-                    }
-                }
-                ServerCommands::Stop => {
-                    println!("Shutting down emulator server...");
-                    std::process::exit(0);
+
+                let path = String::from_utf8(payload[4..4 + path_len].to_vec())
+                    .map_err(|_| EmulatorServerError::LoadCartridgeError {
+                        msg: "Invalid UTF-8 in ROM path".to_string()
+                    })?;
+
+                self.emulator = Some(Emulator::new(&path, false)
+                    .map_err(|e| EmulatorServerError::LoadCartridgeError {
+                        msg: format!("Failed to load ROM: {}", e)
+                    })?);
+
+                println!("Loaded ROM: {}", path);
+            }
+
+            ServerCommands::Reset => {
+                if let Some(ref mut emulator) = self.emulator {
+                    emulator.reset_cpu();
                 }
             }
-            return Ok(());
-        }
-        Err(EmulatorServerError::HandleCommandError { msg: String::from("Unknown command") }.into())
-    }
 
-    pub fn run(&mut self) -> anyhow::Result<()> {
-        loop {
-            let msg = self.socket.recv_bytes(0)?;
-
-            let (command_type, payload) = match self.parse_command(&msg) {
-                Ok((cmd_type, payload)) => (cmd_type, payload),
-                Err(e) => {
-                    self.send_error(&format!("Failed to parse command: {}", e))?;
-                    continue;
+            ServerCommands::Step => {
+                if let Some(ref mut emulator) = self.emulator {
+                    emulator.step_emulation();
                 }
-            };
+            }
 
-            if let Err(e) = self.handle_command(command_type, payload) {
-                println!("Error handling command: {}", e);
+            ServerCommands::SetKeyEvent => {
+                if payload.len() >= 5 {
+                    let key_code = payload[0];
+                    let key_pressed = payload[4] != 0;
+
+                    if let Some(ref mut emulator) = self.emulator {
+                        if let Some(joypad_key) = Self::code_to_button(key_code) {
+                            emulator.set_key_event(joypad_key, key_pressed);
+                        }
+                    }
+                }
+            }
+
+            ServerCommands::GetFrame => {
+                self.update_frame();
+            }
+
+            ServerCommands::GetValueAtAddress => {
+                if let Some(ref emulator) = self.emulator {
+                    if payload.len() >= 2 {
+                        let address = u16::from_le_bytes([payload[0], payload[1]]);
+                        let value = emulator.get_value_at_address(address);
+                        self.write_memory_value_response(address, value);
+                    }
+                }
+            }
+
+            ServerCommands::Stop => {
+                std::process::exit(0);
+            }
+
+            ServerCommands::Noop => {}
+        }
+
+        Ok(())
+    }
+    pub fn run(&mut self) -> Result<(), EmulatorServerError> {
+        println!("Shared memory emulator server running...");
+        println!("Waiting for commands...");
+
+        loop {
+            if let Some((command, payload)) = self.read_command() {
+                if let Err(e) = self.handle_command(command, payload) {
+                    eprintln!("Error handling command: {}", e);
+                }
             }
         }
     }
 }
 
-pub fn start_server(port: &str) -> anyhow::Result<()> {
-    let mut server = EmulatorServer::new(port)?;
+pub fn start_server(command_file: Option<&str>,
+                    state_file: Option<&str>,
+                    frame_file: Option<&str>,
+) -> Result<(), EmulatorServerError> {
+    let command_file = command_file.unwrap_or("/tmp/nes_commands");
+    let state_file = state_file.unwrap_or("/tmp/nes_state");
+    let frame_file = frame_file.unwrap_or("/tmp/nes_frame");
+
+    let mut server = EmulatorServer::new(command_file, state_file, frame_file)?;
     server.run()
+}
+
+pub fn start_server_default() -> Result<(), EmulatorServerError> {
+    start_server(None, None, None)
 }
