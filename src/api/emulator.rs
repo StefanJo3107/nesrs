@@ -108,7 +108,6 @@ impl Emulator {
             .build()?;
 
         let canvas = Rc::new(RefCell::new(window.into_canvas().build()?));
-        let event_pump = Rc::new(RefCell::new(sdl_context.event_pump().unwrap()));
         let canvas_clone = canvas.clone();
         canvas_clone.borrow_mut().set_scale(3.0, 3.0).unwrap();
 
@@ -152,8 +151,6 @@ impl Emulator {
                 let mut frame = Frame::new();
                 let canvas_clone = canvas.clone();
                 let mut canvas_mut = canvas_clone.borrow_mut();
-                let event_pump_clone = event_pump.clone();
-                let mut event_pump_mut = event_pump_clone.borrow_mut();
                 let creator = canvas_mut.texture_creator();
                 let mut texture = creator
                     .create_texture_target(PixelFormatEnum::RGB24, 256, 240)
@@ -167,7 +164,8 @@ impl Emulator {
                 canvas_mut.present();
 
                 if keyboard_input {
-                    for event in event_pump_mut.poll_iter() {
+                    let mut event_pump = sdl_context.event_pump().unwrap();
+                    for event in event_pump.poll_iter() {
                         match event {
                             Event::Quit { .. }
                             | Event::KeyDown {
@@ -204,8 +202,6 @@ impl Emulator {
                 let mut frame = Frame::new();
                 let canvas_clone = canvas.clone();
                 let mut canvas_mut = canvas_clone.borrow_mut();
-                let event_pump_clone = event_pump.clone();
-                let mut event_pump_mut = event_pump_clone.borrow_mut();
                 let creator = canvas_mut.texture_creator();
                 let mut texture = creator
                     .create_texture_target(PixelFormatEnum::RGB24, 256, 240)
@@ -219,7 +215,8 @@ impl Emulator {
                 canvas_mut.present();
 
                 if keyboard_input {
-                    for event in event_pump_mut.poll_iter() {
+                    let mut event_pump = sdl_context.event_pump().unwrap();
+                    for event in event_pump.poll_iter() {
                         match event {
                             Event::Quit { .. }
                             | Event::KeyDown {
