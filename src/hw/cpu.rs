@@ -780,11 +780,13 @@ impl<'a> CPU<'a> {
         F: FnMut(&mut CPU),
     {
         loop {
-            self.step(&mut callback);
+            if self.step(&mut callback) {
+                return;
+            }
         }
     }
 
-    pub fn step<F>(&mut self, mut callback: F)
+    pub fn step<F>(&mut self, mut callback: F) -> bool
     where
         F: FnMut(&mut CPU),
     {
@@ -968,7 +970,7 @@ impl<'a> CPU<'a> {
                     self.rts(opcode.addressing_mode);
                 }
                 Instruction::BRK => {
-                    return;
+                    return true;
                 }
                 Instruction::RTI => {
                     self.rti(opcode.addressing_mode);
@@ -1025,5 +1027,7 @@ impl<'a> CPU<'a> {
         } else {
             panic!("Illegal instruction: 0x{:02X}", opcode_byte);
         }
+
+        false
     }
 }
